@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VisFlow</title>
+    <script>
+      // Pre-paint theme guard: avoid a white flash in dark mode.
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem('visflow.theme'); } catch (e) { /* ignore */ }
+        if (t !== 'light' && t !== 'dark')
+          t = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.dataset.theme = t;
+        document.documentElement.style.backgroundColor = t === 'dark' ? '#0f172a' : '#f8fafc';
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-DGIJjpJw.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-BAFoE2NT.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
