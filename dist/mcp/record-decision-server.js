@@ -21339,7 +21339,7 @@ function repoRoot() {
   return process.env.VISFLOW_REPO_ROOT ?? process.cwd();
 }
 function buildServer() {
-  const server = new McpServer({ name: "visflow-record-decision", version: "0.8.3" });
+  const server = new McpServer({ name: "visflow-record-decision", version: "0.8.4" });
   server.registerTool(
     "visflow_record_decision",
     {

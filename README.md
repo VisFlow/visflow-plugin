@@ -22,8 +22,9 @@ prefer direct API billing).
 - `/visflow:init` — scan the repo and build `.visflow/graph.json` (the map)
 - `/visflow:open` — open the interactive map in your browser
 - `/visflow:sync` — force a full reconcile and print a decisions report
-- Ask Claude to **record a decision** — the `visflow_record_decision` tool attaches your
-  reasoning to the right component on the map.
+- **Decision log** — when you and Claude settle on an architectural choice, Claude records
+  the what and the why (just say "record that decision" if it doesn't offer). Every decision
+  is pinned to its component on the map and stays visible as the code evolves.
 
 ## How the living map works
 
