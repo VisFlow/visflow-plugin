@@ -32,6 +32,7 @@ Using the Bash tool, check whether a map already exists:
   - `external` — third-party services and APIs
 - Record dependencies in `dependsOn`. Each entry is either a bare component **id** string, or an object `{ "id": "<other-id>", "what": "<the specific thing this component uses from it>", "why": "<the reason this dependency exists>" }`. Prefer the annotated object form: when you can tell from the code *what* is used (a function, endpoint, table, type) and *why*, include short `what`/`why` strings; fall back to a bare id only when you genuinely can't. Every `id` (string or `{id}`) MUST be the id of another component in the file.
 - For each component, write a one–two sentence `reasoning.summary`: what it is and why it exists. Set `reasoning.decisions` to `[]` (empty in this version).
+- Cluster the components into **groups** — stable, subsystem-level buckets the map's condensed view opens with (e.g. "Frontend", "API & Services", "Data & Storage", "Build Tooling"). Groups may span layers. **Every component gets exactly one `group`.** Keep groups meaningful: typically 2+ components per group (avoid single-member groups when a sensible sibling exists); a small project may need only 2–4 groups, a larger one roughly 5–12. For each group, write a one-sentence `reasoning.summary` describing the subsystem.
 
 ## Step 3 — Write the file
 Write `.visflow/graph.json` with EXACTLY this shape:
@@ -39,11 +40,19 @@ Write `.visflow/graph.json` with EXACTLY this shape:
 ```json
 {
   "version": 1,
+  "groups": [
+    {
+      "id": "kebab-case-group-id",
+      "label": "Human Readable Group Name",
+      "reasoning": { "summary": "What this subsystem is." }
+    }
+  ],
   "nodes": [
     {
       "id": "kebab-case-id",
       "label": "Human Readable Name",
       "layer": "ui | client | api | services | data | external",
+      "group": "kebab-case-group-id",
       "files": ["real/relative/path.ts"],
       "dependsOn": [{ "id": "other-component-id", "what": "the thing used", "why": "the reason" }],
       "reasoning": { "summary": "What it is and why it exists.", "decisions": [] }
@@ -52,7 +61,7 @@ Write `.visflow/graph.json` with EXACTLY this shape:
 }
 ```
 
-Rules: `id` is unique kebab-case; `files` are real repo-relative paths that exist; `layer` is one of the six values exactly; `dependsOn` entries are bare ids or `{ id, what, why }` objects, and every `id` references an id defined in this file.
+Rules: `id` is unique kebab-case; `files` are real repo-relative paths that exist; `layer` is one of the six values exactly; `dependsOn` entries are bare ids or `{ id, what, why }` objects, and every `id` references an id defined in this file; every node's `group` is the id of an entry in `groups`; group ids are unique kebab-case and never the reserved `__ungrouped__`; every group has at least one member node.
 
 ## Step 4 — Validate (required)
 Run this with the Bash tool and fix the file until it passes:
@@ -64,4 +73,4 @@ node "${CLAUDE_PLUGIN_ROOT}/dist/cli/index.js" validate
 If it reports errors, correct `.visflow/graph.json` and run it again. Do not finish until it prints "Graph is valid".
 
 ## Step 5 — Report
-Tell the user how many components you found and suggest they run `/visflow:open` to view the map.
+Tell the user how many components and groups you found and suggest they run `/visflow:open` to view the map (it opens condensed — double-click a group to drill into its components).
