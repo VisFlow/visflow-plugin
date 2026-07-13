@@ -43,7 +43,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 // node_modules/depd/index.js
 var require_depd = __commonJS({
   "node_modules/depd/index.js"(exports, module) {
-    var relative3 = __require("path").relative;
+    var relative2 = __require("path").relative;
     module.exports = depd;
     var basePath = process.cwd();
     function containsNamespace(str, namespace) {
@@ -235,7 +235,7 @@ var require_depd = __commonJS({
       return formatted;
     }
     function formatLocation(callSite) {
-      return relative3(basePath, callSite[0]) + ":" + callSite[1] + ":" + callSite[2];
+      return relative2(basePath, callSite[0]) + ":" + callSite[1] + ":" + callSite[2];
     }
     function getStack() {
       var limit = Error.stackTraceLimit;
@@ -14132,7 +14132,7 @@ var require_type_is = __commonJS({
     module.exports = typeofrequest;
     module.exports.is = typeis;
     module.exports.hasBody = hasbody;
-    module.exports.normalize = normalize2;
+    module.exports.normalize = normalize;
     module.exports.match = mimeMatch;
     function typeis(value, types_) {
       var i;
@@ -14152,7 +14152,7 @@ var require_type_is = __commonJS({
       }
       var type;
       for (i = 0; i < types.length; i++) {
-        if (mimeMatch(normalize2(type = types[i]), val)) {
+        if (mimeMatch(normalize(type = types[i]), val)) {
           return type[0] === "+" || type.indexOf("*") !== -1 ? val : type;
         }
       }
@@ -14175,7 +14175,7 @@ var require_type_is = __commonJS({
       var value = req.headers["content-type"];
       return typeis(value, types);
     }
-    function normalize2(type) {
+    function normalize(type) {
       if (typeof type !== "string") {
         return false;
       }
@@ -19287,10 +19287,10 @@ var require_view = __commonJS({
     var debug = require_src3()("express:view");
     var path = __require("path");
     var fs = __require("fs");
-    var dirname3 = path.dirname;
-    var basename2 = path.basename;
+    var dirname2 = path.dirname;
+    var basename = path.basename;
     var extname = path.extname;
-    var join14 = path.join;
+    var join7 = path.join;
     var resolve2 = path.resolve;
     module.exports = View;
     function View(name, options) {
@@ -19326,8 +19326,8 @@ var require_view = __commonJS({
       for (var i = 0; i < roots.length && !path2; i++) {
         var root = roots[i];
         var loc = resolve2(root, name);
-        var dir = dirname3(loc);
-        var file = basename2(loc);
+        var dir = dirname2(loc);
+        var file = basename(loc);
         path2 = this.resolve(dir, file);
       }
       return path2;
@@ -19338,12 +19338,12 @@ var require_view = __commonJS({
     };
     View.prototype.resolve = function resolve3(dir, file) {
       var ext = this.ext;
-      var path2 = join14(dir, file);
+      var path2 = join7(dir, file);
       var stat = tryStat(path2);
       if (stat && stat.isFile()) {
         return path2;
       }
-      path2 = join14(dir, basename2(file, ext), "index" + ext);
+      path2 = join7(dir, basename(file, ext), "index" + ext);
       stat = tryStat(path2);
       if (stat && stat.isFile()) {
         return path2;
@@ -19424,7 +19424,7 @@ var require_content_disposition = __commonJS({
     "use strict";
     module.exports = contentDisposition;
     module.exports.parse = parse;
-    var basename2 = __require("path").basename;
+    var basename = __require("path").basename;
     var Buffer2 = require_safe_buffer().Buffer;
     var ENCODE_URL_ATTR_CHAR_REGEXP = /[\x00-\x20"'()*,/:;<=>?@[\\\]{}\x7f]/g;
     var HEX_ESCAPE_REGEXP = /%[0-9A-Fa-f]{2}/;
@@ -19460,9 +19460,9 @@ var require_content_disposition = __commonJS({
       if (typeof fallback === "string" && NON_LATIN1_REGEXP.test(fallback)) {
         throw new TypeError("fallback must be ISO-8859-1 string");
       }
-      var name = basename2(filename);
+      var name = basename(filename);
       var isQuotedString = TEXT_REGEXP.test(name);
-      var fallbackName = typeof fallback !== "string" ? fallback && getlatin1(name) : basename2(fallback);
+      var fallbackName = typeof fallback !== "string" ? fallback && getlatin1(name) : basename(fallback);
       var hasFallback = typeof fallbackName === "string" && fallbackName !== name;
       if (hasFallback || !isQuotedString || HEX_ESCAPE_REGEXP.test(name)) {
         params["filename*"] = name;
@@ -20400,10 +20400,10 @@ var require_send = __commonJS({
     var Stream = __require("stream");
     var util2 = __require("util");
     var extname = path.extname;
-    var join14 = path.join;
-    var normalize2 = path.normalize;
+    var join7 = path.join;
+    var normalize = path.normalize;
     var resolve2 = path.resolve;
-    var sep4 = path.sep;
+    var sep2 = path.sep;
     var BYTES_RANGE_REGEXP = /^ *bytes=/;
     var MAX_MAXAGE = 60 * 60 * 24 * 365 * 1e3;
     var UP_PATH_REGEXP = /(?:^|[\\/])\.\.(?:[\\/]|$)/;
@@ -20611,22 +20611,22 @@ var require_send = __commonJS({
       var parts;
       if (root !== null) {
         if (path2) {
-          path2 = normalize2("." + sep4 + path2);
+          path2 = normalize("." + sep2 + path2);
         }
         if (UP_PATH_REGEXP.test(path2)) {
           debug('malicious path "%s"', path2);
           this.error(403);
           return res;
         }
-        parts = path2.split(sep4);
-        path2 = normalize2(join14(root, path2));
+        parts = path2.split(sep2);
+        path2 = normalize(join7(root, path2));
       } else {
         if (UP_PATH_REGEXP.test(path2)) {
           debug('malicious path "%s"', path2);
           this.error(403);
           return res;
         }
-        parts = normalize2(path2).split(sep4);
+        parts = normalize(path2).split(sep2);
         path2 = resolve2(path2);
       }
       if (containsDotFile(parts)) {
@@ -20724,7 +20724,7 @@ var require_send = __commonJS({
       var self = this;
       debug('stat "%s"', path2);
       fs.stat(path2, function onstat(err, stat) {
-        if (err && err.code === "ENOENT" && !extname(path2) && path2[path2.length - 1] !== sep4) {
+        if (err && err.code === "ENOENT" && !extname(path2) && path2[path2.length - 1] !== sep2) {
           return next(err);
         }
         if (err) return self.onStatError(err);
@@ -20754,7 +20754,7 @@ var require_send = __commonJS({
           if (err) return self.onStatError(err);
           return self.error(404);
         }
-        var p = join14(path2, self._index[i]);
+        var p = join7(path2, self._index[i]);
         debug('stat "%s"', p);
         fs.stat(p, function(err2, stat) {
           if (err2) return next(err2);
@@ -23178,7 +23178,7 @@ var require_response = __commonJS({
     var encodeUrl = require_encodeurl();
     var escapeHtml = require_escape_html();
     var http = __require("http");
-    var isAbsolute3 = require_utils2().isAbsolute;
+    var isAbsolute2 = require_utils2().isAbsolute;
     var onFinished = require_on_finished();
     var path = __require("path");
     var statuses = require_statuses();
@@ -23384,7 +23384,7 @@ var require_response = __commonJS({
         done = options;
         opts = {};
       }
-      if (!opts.root && !isAbsolute3(path2)) {
+      if (!opts.root && !isAbsolute2(path2)) {
         throw new TypeError("path must be absolute or specify root to res.sendFile");
       }
       var pathname = encodeURI(path2);
@@ -28044,104 +28044,15 @@ function loadGraph(repoRoot) {
 }
 
 // src/core/decisions.ts
-import { readFileSync as readFileSync3 } from "node:fs";
-import { join as join4 } from "node:path";
-
-// src/core/atomic.ts
-import { writeFileSync, renameSync, mkdirSync } from "node:fs";
-import { dirname, basename, join as join2 } from "node:path";
-function writeJsonAtomic(targetPath, data) {
-  const dir = dirname(targetPath);
-  mkdirSync(dir, { recursive: true });
-  const tmp = join2(dir, `.${basename(targetPath)}.tmp-${process.pid}-${Date.now()}`);
-  writeFileSync(tmp, JSON.stringify(data, null, 2) + "\n");
-  renameSync(tmp, targetPath);
-}
-
-// src/core/lock.ts
-import { writeFileSync as writeFileSync2, mkdirSync as mkdirSync2 } from "node:fs";
-import { join as join3 } from "node:path";
-
-// src/core/stale-pid-file.ts
-import { readFileSync as readFileSync2, statSync, renameSync as renameSync2, rmSync, utimesSync } from "node:fs";
-function isPidAlive(pid) {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (e) {
-    return e.code !== "ESRCH";
-  }
-}
-function isStalePidFile(path, ttlMs) {
-  try {
-    if (Date.now() - statSync(path).mtimeMs > ttlMs) return true;
-    const pid = Number.parseInt(readFileSync2(path, "utf8"), 10);
-    if (!Number.isInteger(pid) || pid <= 0) return false;
-    return !isPidAlive(pid);
-  } catch {
-    return false;
-  }
-}
-function touchPidFile(path) {
-  try {
-    utimesSync(path, /* @__PURE__ */ new Date(), /* @__PURE__ */ new Date());
-  } catch {
-  }
-}
-function stealPidFile(path) {
-  const grave = `${path}.stale-${process.pid}`;
-  try {
-    renameSync2(path, grave);
-  } catch {
-    return false;
-  }
-  try {
-    rmSync(grave, { force: true });
-  } catch {
-  }
-  return true;
-}
-function releaseOwnedPidFile(path) {
-  try {
-    if (readFileSync2(path, "utf8") === `${process.pid}`) rmSync(path, { force: true });
-  } catch {
-  }
-}
-
-// src/core/lock.ts
-var sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-async function withLock(repoRoot, fn, opts = {}) {
-  const retries = opts.retries ?? 100;
-  const delayMs = opts.delayMs ?? 20;
-  const staleMs = opts.staleMs ?? 6e4;
-  const dir = join3(repoRoot, ".visflow");
-  const lockPath = join3(dir, ".lock");
-  mkdirSync2(dir, { recursive: true });
-  for (let attempt = 0; ; attempt++) {
-    try {
-      writeFileSync2(lockPath, `${process.pid}`, { flag: "wx" });
-      break;
-    } catch {
-      if (isStalePidFile(lockPath, staleMs) && stealPidFile(lockPath)) continue;
-      if (attempt >= retries) throw new Error("visflow: could not acquire .visflow/.lock");
-      await sleep(delayMs);
-    }
-  }
-  try {
-    return await fn();
-  } finally {
-    releaseOwnedPidFile(lockPath);
-  }
-}
-
-// src/core/decisions.ts
+import { readFileSync as readFileSync2 } from "node:fs";
+import { join as join2 } from "node:path";
 function decisionsPath(repoRoot) {
-  return join4(repoRoot, ".visflow", "decisions.json");
+  return join2(repoRoot, ".visflow", "decisions.json");
 }
 function readDecisions(repoRoot) {
   let raw;
   try {
-    raw = readFileSync3(decisionsPath(repoRoot), "utf8");
+    raw = readFileSync2(decisionsPath(repoRoot), "utf8");
   } catch {
     return { version: 1, decisions: {} };
   }
@@ -28160,7 +28071,7 @@ function findOrphans(nodeIds, decisions) {
 
 // src/server/server.ts
 import { fileURLToPath as fileURLToPath2 } from "node:url";
-import { dirname as dirname2, join as join7 } from "node:path";
+import { dirname, join as join5 } from "node:path";
 import { existsSync as existsSync2 } from "node:fs";
 
 // src/core/open-url.ts
@@ -28202,14 +28113,14 @@ function buildGraphResponse(graph, decisions = {}, meta = null) {
 }
 
 // src/core/meta.ts
-import { readFileSync as readFileSync4, existsSync, writeFileSync as writeFileSync3, rmSync as rmSync2, statSync as statSync2, mkdirSync as mkdirSync3 } from "node:fs";
-import { join as join5 } from "node:path";
+import { readFileSync as readFileSync3, existsSync, writeFileSync, rmSync, statSync, mkdirSync } from "node:fs";
+import { join as join3 } from "node:path";
 function metaPath(repoRoot) {
-  return join5(repoRoot, ".visflow", "meta.json");
+  return join3(repoRoot, ".visflow", "meta.json");
 }
 function readMeta(repoRoot) {
   try {
-    const d = JSON.parse(readFileSync4(metaPath(repoRoot), "utf8"));
+    const d = JSON.parse(readFileSync3(metaPath(repoRoot), "utf8"));
     return {
       version: 1,
       lastSync: d.lastSync ?? null,
@@ -28222,46 +28133,6 @@ function readMeta(repoRoot) {
     };
   } catch {
     return { version: 1, lastSync: null };
-  }
-}
-function writeMeta(repoRoot, meta) {
-  writeJsonAtomic(metaPath(repoRoot), meta);
-}
-function updateMeta(repoRoot, update, opts = {}) {
-  const lockTimeoutMs = opts.lockTimeoutMs ?? 1500;
-  const staleMs = opts.staleMs ?? 1e3;
-  const lockPath = join5(repoRoot, ".visflow", ".meta-lock");
-  mkdirSync3(join5(repoRoot, ".visflow"), { recursive: true });
-  const deadline = Date.now() + lockTimeoutMs;
-  let locked = false;
-  while (Date.now() < deadline) {
-    try {
-      writeFileSync3(lockPath, `${process.pid}`, { flag: "wx" });
-      locked = true;
-      break;
-    } catch {
-      try {
-        if (Date.now() - statSync2(lockPath).mtimeMs > staleMs) {
-          rmSync2(lockPath, { force: true });
-          continue;
-        }
-      } catch {
-        continue;
-      }
-      const spinUntil = Date.now() + 5;
-      while (Date.now() < spinUntil) {
-      }
-    }
-  }
-  try {
-    writeMeta(repoRoot, update(readMeta(repoRoot)));
-  } finally {
-    if (locked) {
-      try {
-        if (readFileSync4(lockPath, "utf8") === `${process.pid}`) rmSync2(lockPath, { force: true });
-      } catch {
-      }
-    }
   }
 }
 function readMetaOrNull(repoRoot) {
@@ -28334,13 +28205,13 @@ var SseHub = class {
 
 // src/server/watch.ts
 import { watch } from "node:fs";
-import { join as join6 } from "node:path";
+import { join as join4 } from "node:path";
 var TRACKED = /* @__PURE__ */ new Set(["graph.json", "decisions.json", "meta.json"]);
 function shouldNotify(filename) {
   return filename !== null && TRACKED.has(filename);
 }
 var fsWatcher = (repoRoot, onChange) => {
-  const dir = join6(repoRoot, ".visflow");
+  const dir = join4(repoRoot, ".visflow");
   let timer = null;
   const fire = () => {
     timer = null;
@@ -28431,14 +28302,14 @@ function createApp(opts) {
 
 // src/server/server.ts
 function resolveWebDir(moduleDir, cwd) {
-  const sibling = join7(moduleDir, "..", "web");
-  if (existsSync2(join7(sibling, "assets"))) return sibling;
-  const built = join7(cwd, "dist", "web");
-  if (existsSync2(join7(built, "assets"))) return built;
+  const sibling = join5(moduleDir, "..", "web");
+  if (existsSync2(join5(sibling, "assets"))) return sibling;
+  const built = join5(cwd, "dist", "web");
+  if (existsSync2(join5(built, "assets"))) return built;
   return void 0;
 }
 function defaultWebDir() {
-  return resolveWebDir(dirname2(fileURLToPath2(import.meta.url)), process.cwd());
+  return resolveWebDir(dirname(fileURLToPath2(import.meta.url)), process.cwd());
 }
 async function startServer(opts) {
   const app = createApp({ repoRoot: opts.repoRoot, webDir: defaultWebDir() });
@@ -28458,855 +28329,15 @@ async function startServer(opts) {
   });
 }
 
-// src/core/events-log.ts
-import { appendFileSync, mkdirSync as mkdirSync4, readFileSync as readFileSync5, renameSync as renameSync3, rmSync as rmSync3, existsSync as existsSync3, readdirSync } from "node:fs";
-import { join as join8 } from "node:path";
-var MAX_EVENT_RETRIES = 3;
-function eventsLogPath(repoRoot) {
-  return join8(repoRoot, ".visflow", "events.log");
-}
-function parseEvents(raw) {
-  const out = [];
-  for (const line of raw.split("\n")) {
-    if (!line.trim()) continue;
-    try {
-      const ev = JSON.parse(line);
-      if (ev && typeof ev.file === "string") out.push(ev);
-    } catch {
-    }
-  }
-  return out;
-}
-function appendEvent(repoRoot, ev) {
-  mkdirSync4(join8(repoRoot, ".visflow"), { recursive: true });
-  appendFileSync(eventsLogPath(repoRoot), JSON.stringify(ev) + "\n");
-}
-function drainEvents(repoRoot) {
-  const path = eventsLogPath(repoRoot);
-  if (!existsSync3(path)) return { events: [], commit: () => {
-  }, restore: () => 0 };
-  const snapshot = `${path}.draining-${process.pid}-${Date.now()}`;
-  renameSync3(path, snapshot);
-  let events = [];
-  let note;
-  try {
-    events = parseEvents(readFileSync5(snapshot, "utf8"));
-  } catch {
-    note = "events snapshot unreadable; contents discarded";
-  }
-  return {
-    events,
-    note,
-    commit: () => rmSync3(snapshot, { force: true }),
-    restore: (opts) => {
-      const bump = opts?.bumpRetry ?? true;
-      let abandoned = 0;
-      for (const ev of events) {
-        if (!bump) {
-          appendEvent(repoRoot, ev);
-          continue;
-        }
-        const retry = (ev.retry ?? 0) + 1;
-        if (retry >= MAX_EVENT_RETRIES) {
-          abandoned++;
-          continue;
-        }
-        appendEvent(repoRoot, { ...ev, retry });
-      }
-      rmSync3(snapshot, { force: true });
-      return abandoned;
-    }
-  };
-}
-function sweepAbandonedDrains(repoRoot) {
-  const dir = join8(repoRoot, ".visflow");
-  let entries;
-  try {
-    entries = readdirSync(dir);
-  } catch {
-    return { requeued: 0 };
-  }
-  let requeued = 0;
-  let unreadable = 0;
-  let abandoned = 0;
-  for (const name of entries) {
-    const m = /^events\.log\.draining-(\d+)-\d+$/.exec(name);
-    if (!m) continue;
-    if (isPidAlive(Number.parseInt(m[1], 10))) continue;
-    const snapshot = join8(dir, name);
-    try {
-      for (const ev of parseEvents(readFileSync5(snapshot, "utf8"))) {
-        const retry = (ev.retry ?? 0) + 1;
-        if (retry >= MAX_EVENT_RETRIES) {
-          abandoned++;
-          continue;
-        }
-        appendEvent(repoRoot, { ...ev, retry });
-        requeued++;
-      }
-    } catch {
-      unreadable++;
-    }
-    rmSync3(snapshot, { force: true });
-  }
-  const parts = [
-    unreadable > 0 ? `${unreadable} abandoned snapshot(s) unreadable; contents discarded` : void 0,
-    abandoned > 0 ? `${abandoned} event(s) abandoned after ${MAX_EVENT_RETRIES} attempts (crashed passes)` : void 0
-  ].filter(Boolean);
-  return { requeued, note: parts.length ? parts.join(" \xB7 ") : void 0 };
-}
-
-// src/core/gate.ts
-var CODE_EXT = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|py|ipynb|go|rs|java|rb|php|c|h|cc|cpp|cxx|hh|hpp|hxx|cs|swift|kt|kts|scala|sql|vue|svelte|astro|dart|m|mm|ex|exs|erl|clj|cljs|cljc|hs|ml|mli|lua|r|jl|pl|pm|groovy|gradle|zig|nim|proto|graphql|gql|sh|bash|zsh)$/i;
-function shouldReconcile(input) {
-  if (input.force) return true;
-  return input.events.some((e) => CODE_EXT.test(e.file));
-}
-
-// src/schema/decisions-schema.ts
-var DecisionSchema = external_exports.object({
-  what: external_exports.string().min(1).max(MAX_TEXT),
-  // cost-bomb guard (2026-07-07 review)
-  why: external_exports.string().min(1).max(MAX_TEXT),
-  source: external_exports.enum(["tool", "inferred"]).optional(),
-  ts: external_exports.string().optional()
-});
-var DecisionsFileSchema = external_exports.object({
-  version: external_exports.literal(1),
-  decisions: external_exports.record(external_exports.string().max(MAX_NAME), external_exports.array(DecisionSchema))
-});
-function validateDecisions(data) {
-  const parsed = DecisionsFileSchema.safeParse(data);
-  if (!parsed.success) {
-    return { ok: false, errors: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`) };
-  }
-  return { ok: true };
-}
-
-// src/core/node-loss.ts
-import { existsSync as existsSync4 } from "node:fs";
-import { join as join9 } from "node:path";
-function checkNodeLoss(prev, proposed, repoRoot) {
-  const proposedIds = new Set(proposed.nodes.map((n) => n.id));
-  const proposedFiles = new Set(proposed.nodes.flatMap((n) => n.files));
-  const lost = [];
-  for (const node of prev.nodes) {
-    if (proposedIds.has(node.id)) continue;
-    const unjustified = node.files.some(
-      (f) => existsSync4(join9(repoRoot, f)) && !proposedFiles.has(f)
-    );
-    if (unjustified) lost.push(node.id);
-  }
-  return lost.length === 0 ? { ok: true } : { ok: false, lost };
-}
+// src/cli/index.ts
+import { runReconcile } from "../reconcile/index.js";
 
 // src/core/ghost-nodes.ts
-import { existsSync as existsSync5 } from "node:fs";
-import { join as join10 } from "node:path";
+import { existsSync as existsSync3 } from "node:fs";
+import { join as join6 } from "node:path";
 function findGhostNodeIds(graph, repoRoot) {
-  return graph.nodes.filter((n) => n.files.length > 0 && n.files.every((f) => !existsSync5(join10(repoRoot, f)))).map((n) => n.id);
+  return graph.nodes.filter((n) => n.files.length > 0 && n.files.every((f) => !existsSync3(join6(repoRoot, f)))).map((n) => n.id);
 }
-
-// src/core/run-guard.ts
-import { writeFileSync as writeFileSync4, mkdirSync as mkdirSync5 } from "node:fs";
-import { join as join11 } from "node:path";
-var GUARD_TTL_MS = 10 * 60 * 1e3;
-function acquireRunGuard(repoRoot, opts = {}) {
-  const ttlMs = opts.ttlMs ?? GUARD_TTL_MS;
-  const path = join11(repoRoot, ".visflow", ".reconcile-running");
-  mkdirSync5(join11(repoRoot, ".visflow"), { recursive: true });
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      writeFileSync4(path, `${process.pid}`, { flag: "wx" });
-      const lease = setInterval(() => touchPidFile(path), Math.max(1e3, Math.floor(ttlMs / 5)));
-      lease.unref();
-      return { acquired: true, release: () => {
-        clearInterval(lease);
-        releaseOwnedPidFile(path);
-      } };
-    } catch {
-      if (attempt === 0 && isStalePidFile(path, ttlMs) && stealPidFile(path)) continue;
-      break;
-    }
-  }
-  return { acquired: false, release: () => {
-  } };
-}
-
-// src/reconcile/projection.ts
-var NEIGHBOR_FULL_MAX = 8;
-function indexJson(n) {
-  return {
-    id: n.id,
-    label: n.label,
-    layer: n.layer,
-    ...n.group !== void 0 ? { group: n.group } : {},
-    dependsOn: n.dependsOn.map((d) => d.id)
-  };
-}
-function indexText(n) {
-  return `${n.id}|${n.layer}|${n.label}|${n.dependsOn.map((d) => d.id).join(",")}|${n.group ?? ""}`;
-}
-function projectGraphForPrompt(graph, scope, opts) {
-  if (opts.mode === "full") return JSON.stringify(graph);
-  const groups = graph.groups ?? [];
-  const format = opts.format ?? "json";
-  const demote = scope.neighborIds.size > NEIGHBOR_FULL_MAX;
-  const scoped = [];
-  const edges = [];
-  const index = [];
-  for (const node of graph.nodes) {
-    if (scope.affectedIds.has(node.id) || !demote && scope.neighborIds.has(node.id)) scoped.push(node);
-    else if (demote && scope.neighborIds.has(node.id))
-      edges.push({ id: node.id, label: node.label, dependsOn: node.dependsOn.filter((d) => scope.affectedIds.has(d.id)) });
-    else index.push(format === "text" ? indexText(node) : indexJson(node));
-  }
-  return demote ? JSON.stringify({ groups, scoped, edges, index }) : JSON.stringify({ groups, scoped, index });
-}
-
-// src/reconcile/prompt.ts
-var bullets = (xs) => xs.length ? xs.map((x) => `  - ${x}`).join("\n") : "  (none)";
-function scopedBody(scope, neighborFiles, demoted, excluded) {
-  const excludedSet = new Set(excluded);
-  const readable = [.../* @__PURE__ */ new Set([...scope.changedFiles, ...neighborFiles])].filter((f) => !excludedSet.has(f));
-  const newFiles = scope.newFiles.filter((f) => !excludedSet.has(f));
-  return [
-    "Files changed this turn:",
-    bullets(scope.changedFiles),
-    "",
-    `Affected nodes (whose files changed): ${scope.affectedNodeIds.join(", ") || "(none)"}`,
-    demoted ? `Neighbor nodes (context-only; their connecting edges are in the \`edges\` tier of the graph embed): ${scope.neighborNodeIds.join(", ")}` : `Neighbor nodes (direct dependencies/dependents \u2014 read to keep cross-edges accurate): ${scope.neighborNodeIds.join(", ") || "(none)"}`,
-    "Files you MAY read on disk (changed + neighbor files) \u2014 read NOTHING else:",
-    bullets(readable),
-    newFiles.length ? `New files not yet in any node \u2014 create node(s) for them:
-${bullets(newFiles)}` : "No new files.",
-    "",
-    "Rules: Do NOT Grep or Glob the repository. Do NOT read files outside the list above.",
-    ...excluded.length ? ["EXCLUDED (resolve outside the repository \u2014 do NOT read them, do NOT create nodes for them):", bullets(excluded)] : [],
-    demoted ? "Modify ONLY the affected nodes (and add nodes for new files). Neighbor and index nodes are read-only." : "Modify ONLY the affected and neighbor nodes (and add nodes for new files). Leave every other node untouched.",
-    "Include a node id in `remove` ONLY if a changed file leaves it with no remaining files on disk.",
-    "Change `group` membership ONLY on nodes you may modify (per the rules above); other nodes' groups are read-only."
-  ];
-}
-function scopedInlineBody(scope, files, demoted) {
-  return [
-    "Files changed this turn:",
-    bullets(scope.changedFiles),
-    "",
-    `Affected nodes (whose files changed): ${scope.affectedNodeIds.join(", ") || "(none)"}`,
-    demoted ? `Neighbor nodes (context-only; their connecting edges are in the \`edges\` tier of the graph embed): ${scope.neighborNodeIds.join(", ")}` : `Neighbor nodes (direct dependencies/dependents): ${scope.neighborNodeIds.join(", ") || "(none)"}`,
-    scope.newFiles.length ? `New files not yet in any node \u2014 create node(s) for them:
-${bullets(scope.newFiles)}` : "No new files.",
-    "",
-    "The complete contents of every file in scope are inlined below. Do NOT use any tools \u2014",
-    "everything you may consider is here.",
-    ...files.flatMap((f) => [``, `### ${f.path}`, "```", f.contents, "```"]),
-    "",
-    demoted ? "Modify ONLY the affected nodes (and add nodes for new files). Neighbor and index nodes are read-only." : "Modify ONLY the affected and neighbor nodes (and add nodes for new files). Leave every other node untouched.",
-    "Include a node id in `remove` ONLY if a changed file leaves it with no remaining files on disk.",
-    "Change `group` membership ONLY on nodes you may modify (per the rules above); other nodes' groups are read-only."
-  ];
-}
-function fullBody() {
-  return [
-    "This is a full catch-up reconcile. Inspect the repository with Read/Grep/Glob to find every",
-    "component that should exist, and reconcile the whole graph: add missing nodes, update files/dependsOn,",
-    "and include a node id in `remove` only if every file it backed is gone from disk.",
-    "Assign every node a `group` (create groups via `groupUpsert` as needed \u2014 see the group rules below). Prefer stable, subsystem-level groupings."
-  ];
-}
-function buildReconcilePrompt(input) {
-  const { mode, graph, orphanDecisions, orphanIds, scope } = input;
-  const projection = input.projection ?? "projected";
-  const affectedIds = new Set(scope ? scope.affectedNodeIds : []);
-  const neighborIds = new Set(scope ? scope.neighborNodeIds : []);
-  const demoted = neighborIds.size > NEIGHBOR_FULL_MAX;
-  const neighborFiles = scope && !demoted ? [...new Set(graph.nodes.filter((n) => scope.neighborNodeIds.includes(n.id)).flatMap((n) => n.files))] : [];
-  const embed = projectGraphForPrompt(graph, { affectedIds, neighborIds }, { mode: projection });
-  const graphBlock = projection === "projected" ? [
-    demoted ? 'Current graph as {"groups":[\u2026],"scoped":[\u2026],"edges":[\u2026],"index":[\u2026]}. `scoped` nodes are COMPLETE \u2014 the only' : 'Current graph as {"groups":[\u2026],"scoped":[\u2026],"index":[\u2026]}. `scoped` nodes are COMPLETE \u2014 these are the only',
-    "nodes you may edit. `index` nodes are abbreviated to {id,label,layer,dependsOn}: they exist and",
-    "are valid \u2014 reference their ids freely, NEVER modify them, and do not treat their omitted fields",
-    "as empty.",
-    "`groups` is the complete list of node groups: {id,label,reasoning}. Node `group` fields reference these ids.",
-    ...demoted ? ["`edges` nodes are context-only neighbors: {id,label,dependsOn\u2192affected edges}. NEVER modify or emit them."] : [],
-    "```json",
-    embed,
-    "```"
-  ] : ["Current graph.json:", "```json", embed, "```"];
-  const header = [
-    "You are VisFlow's map reconciler. Update the architecture graph to match the current code.",
-    input.inlineFiles ? "You have NO tools \u2014 respond from the inlined data only. You MUST NOT edit anything." : "You may use ONLY the Read, Grep, and Glob tools \u2014 you are read-only and MUST NOT edit anything.",
-    "",
-    ...graphBlock,
-    "",
-    orphanIds.length ? `Orphaned decision ids (reassign each to the correct current node id if one now exists): ${orphanIds.join(", ")}
-\`\`\`json
-${JSON.stringify(orphanDecisions, null, 2)}
-\`\`\`` : "No orphaned decisions.",
-    ""
-  ];
-  const body = mode === "scoped" ? input.inlineFiles ? scopedInlineBody(scope, input.inlineFiles, demoted) : scopedBody(scope, neighborFiles, demoted, input.excludePaths ?? []) : fullBody();
-  const output = [
-    "",
-    "Respond with ONLY a single JSON object, no prose, exactly this shape:",
-    '{"upsert": [<full node objects you added or changed>], "remove": [<node ids to delete>], "decisionMoves": [{"fromId": "<orphan id>", "toId": "<current node id>"}], "groupUpsert": [<group objects you added or changed>]}',
-    "Emit ONLY nodes you changed in `upsert` \u2014 do NOT echo unchanged nodes (they are preserved automatically).",
-    "To change a node, copy it from the graph above and emit the whole modified node (every field).",
-    `Every node's \`layer\` MUST be one of: ${LAYERS.join(", ")} \u2014 any other value is rejected.`,
-    'Every `upsert` node MUST be complete: {"id", "label", "layer", "group": "<group id>", "files": [repo-relative paths], "dependsOn": [{"id", "what", "why"}], "reasoning": {"summary": "<1-2 sentences>"}} \u2014 `reasoning.summary` is REQUIRED; a node missing it is rejected.',
-    'Groups: every node MUST have a `group` \u2014 the id of an entry in the graph\'s `groups` list. PREFER existing groups; create a new one (emit it in `groupUpsert`, complete: {"id", "label", "reasoning": {"summary": "<1 sentence>"}}) only when no existing group fits. Roughly 5-12 groups is healthy; avoid single-member groups when a sensible sibling group exists.',
-    "Group ids are stable: NEVER change an existing group's id (labels/reasoning may change via `groupUpsert`). There is NO way to delete a group \u2014 a group disappears automatically when its last member leaves; to merge group X into Y, re-emit X's members with Y's group id.",
-    "Omit `groupUpsert` (or emit []) when no group is added or reworded.",
-    'ALWAYS end with the JSON object \u2014 when nothing needs changing, emit exactly {"upsert": [], "remove": [], "decisionMoves": []}; never prose in its place.',
-    "Derive everything from the code and the data above; do not read the conversation."
-  ];
-  return [...header, ...body, ...output].join("\n");
-}
-
-// src/reconcile/scope.ts
-import { isAbsolute as isAbsolute2, normalize, relative as relative2, sep as sep2 } from "node:path";
-function toRepoRelative(file, repoRoot) {
-  const rel = isAbsolute2(file) ? relative2(repoRoot, file) : normalize(file);
-  return rel.split(sep2).join("/");
-}
-function resolveAffectedNodes(events, graph, repoRoot) {
-  const changedFiles = [...new Set(
-    events.map((e) => toRepoRelative(e.file, repoRoot)).filter((rel) => rel.length > 0 && rel !== "." && !rel.startsWith("..") && !isAbsolute2(rel))
-  )];
-  const changedSet = new Set(changedFiles);
-  const affected = graph.nodes.filter((n) => n.files.some((f) => changedSet.has(f)));
-  const affectedIds = new Set(affected.map((n) => n.id));
-  const knownFiles = new Set(graph.nodes.flatMap((n) => n.files));
-  const newFiles = changedFiles.filter((f) => !knownFiles.has(f));
-  const neighbors = /* @__PURE__ */ new Set();
-  for (const n of affected) for (const d of n.dependsOn) if (!affectedIds.has(d.id)) neighbors.add(d.id);
-  for (const n of graph.nodes) {
-    if (affectedIds.has(n.id)) continue;
-    if (n.dependsOn.some((d) => affectedIds.has(d.id))) neighbors.add(n.id);
-  }
-  return { changedFiles, affectedNodeIds: [...affectedIds], neighborNodeIds: [...neighbors], newFiles };
-}
-
-// src/reconcile/patch.ts
-function applyPatch(prev, patch) {
-  const upserts = patch.upsert.filter((n) => !!n && typeof n === "object");
-  const groupUpserts = (patch.groupUpsert ?? []).filter((g) => !!g && typeof g === "object");
-  const removeSet = new Set(patch.remove);
-  const upsertById = new Map(upserts.map((node) => [node.id, node]));
-  const nodes = [];
-  const placed = /* @__PURE__ */ new Set();
-  for (const node of prev.nodes) {
-    if (removeSet.has(node.id)) continue;
-    nodes.push(upsertById.get(node.id) ?? node);
-    placed.add(node.id);
-  }
-  for (const node of upserts) {
-    if (!placed.has(node.id) && !removeSet.has(node.id)) {
-      nodes.push(node);
-      placed.add(node.id);
-    }
-  }
-  const groupById = new Map(groupUpserts.map((g) => [g.id, g]));
-  const groups = [];
-  const placedGroups = /* @__PURE__ */ new Set();
-  for (const g of prev.groups ?? []) {
-    groups.push(groupById.get(g.id) ?? g);
-    placedGroups.add(g.id);
-  }
-  for (const g of groupUpserts) {
-    if (!placedGroups.has(g.id)) {
-      groups.push(g);
-      placedGroups.add(g.id);
-    }
-  }
-  return { version: 1, groups, nodes };
-}
-
-// src/reconcile/sanitize.ts
-function sanitizeDanglingEdges(graph) {
-  const ids = new Set(graph.nodes.map((n) => n.id));
-  const dropped = [];
-  const nodes = graph.nodes.map((n) => {
-    if (!Array.isArray(n.dependsOn)) return n;
-    const keep = n.dependsOn.filter((d) => {
-      if (!d || typeof d !== "object" || typeof d.id !== "string") return true;
-      if (ids.has(d.id)) return true;
-      dropped.push({ nodeId: n.id, depId: d.id });
-      return false;
-    });
-    return keep.length === n.dependsOn.length ? n : { ...n, dependsOn: keep };
-  });
-  return dropped.length ? { graph: { version: 1, groups: graph.groups ?? [], nodes }, dropped } : { graph, dropped };
-}
-function sanitizeGroups(prev, merged) {
-  const prevGroupByNode = /* @__PURE__ */ new Map();
-  for (const n of prev.nodes) if (typeof n.group === "string") prevGroupByNode.set(n.id, n.group);
-  const mergedGroups = Array.isArray(merged.groups) ? merged.groups : [];
-  const groupIds = new Set(
-    mergedGroups.filter((g) => !!g && typeof g === "object" && typeof g.id === "string").map((g) => g.id)
-  );
-  const restored = [];
-  const droppedRefs = [];
-  const nodes = merged.nodes.map((n) => {
-    if (!n || typeof n !== "object" || typeof n.id !== "string") return n;
-    let out = n;
-    if (out.group == null) {
-      const prevGroup = prevGroupByNode.get(out.id);
-      if (prevGroup !== void 0 && groupIds.has(prevGroup)) {
-        out = { ...out, group: prevGroup };
-        restored.push({ nodeId: out.id, group: prevGroup });
-      }
-    }
-    if (typeof out.group === "string" && !groupIds.has(out.group)) {
-      droppedRefs.push({ nodeId: out.id, group: out.group });
-      out = { ...out, group: void 0 };
-    }
-    return out;
-  });
-  const memberCount = /* @__PURE__ */ new Map();
-  for (const n of nodes) {
-    if (n && typeof n === "object" && typeof n.group === "string") {
-      memberCount.set(n.group, (memberCount.get(n.group) ?? 0) + 1);
-    }
-  }
-  const prunedGroups = [];
-  const groups = mergedGroups.filter((g) => {
-    if (!g || typeof g !== "object" || typeof g.id !== "string") return true;
-    if ((memberCount.get(g.id) ?? 0) > 0) return true;
-    prunedGroups.push(g.id);
-    return false;
-  });
-  const changed = restored.length > 0 || droppedRefs.length > 0 || prunedGroups.length > 0;
-  return { graph: changed ? { version: 1, groups, nodes } : merged, restored, droppedRefs, prunedGroups };
-}
-
-// src/llm/run.ts
-import { spawn as spawn3 } from "node:child_process";
-var DEFAULT_MODEL = "haiku";
-function buildClaudeArgs(opts) {
-  return [
-    "-p",
-    "--output-format",
-    "json",
-    "--model",
-    opts.model,
-    // One-shot scoped passes (C6): everything the pass may see is inlined in the prompt, so the
-    // tool loop — each round-trip re-billing the growing context — is dropped entirely.
-    // Otherwise, scoped passes read ONLY the projected files: Grep/Glob latitude let a 2-file
-    // scoped pass rebuild the whole map at 12x cost (dogfood OBS 1). Full passes legitimately explore.
-    "--tools",
-    opts.oneShot ? "" : opts.mode === "scoped" ? "Read" : "Read,Grep,Glob",
-    "--disallowedTools",
-    "Edit",
-    "Write",
-    "Bash",
-    "mcp__*",
-    "--permission-mode",
-    "dontAsk",
-    "--strict-mcp-config",
-    // Per-reconcile cost ceiling. The installed CLI has no --max-turns (claude 2.1.187);
-    // --max-budget-usd bounds a runaway read-only pass instead. Verified via the Task 9 smoke.
-    "--max-budget-usd",
-    "0.50",
-    "--no-session-persistence",
-    // config isolation so the spawned run does NOT re-load our plugin hooks:
-    ...opts.byok ? ["--bare"] : ["--safe-mode"]
-  ];
-}
-var DEFAULT_MAX_THINKING_TOKENS = "1024";
-function buildClaudeEnv(base, opts = {}) {
-  const env = { ...base, VISFLOW_RECONCILING: "1" };
-  if (opts.byokKey) env.ANTHROPIC_API_KEY = opts.byokKey;
-  const cap = base.VISFLOW_MAX_THINKING_TOKENS || DEFAULT_MAX_THINKING_TOKENS;
-  if (cap === "0" || cap.toLowerCase() === "off") delete env.MAX_THINKING_TOKENS;
-  else env.MAX_THINKING_TOKENS = cap;
-  return env;
-}
-function parseClaudeEnvelope(stdout) {
-  let env;
-  try {
-    env = JSON.parse(stdout);
-  } catch {
-    return null;
-  }
-  if (!env || typeof env !== "object") return null;
-  return {
-    text: typeof env.result === "string" ? env.result : "",
-    costUsd: typeof env.total_cost_usd === "number" ? env.total_cost_usd : null,
-    isError: env.is_error === true
-  };
-}
-function topLevelObjects(text) {
-  const objs = [];
-  let i = 0;
-  while (i < text.length) {
-    const start = text.indexOf("{", i);
-    if (start < 0) break;
-    let depth = 0, end = -1, inStr = false, esc = false;
-    for (let j = start; j < text.length; j++) {
-      const ch = text[j];
-      if (inStr) {
-        if (esc) esc = false;
-        else if (ch === "\\") esc = true;
-        else if (ch === '"') inStr = false;
-      } else if (ch === '"') inStr = true;
-      else if (ch === "{") depth++;
-      else if (ch === "}") {
-        depth--;
-        if (depth === 0) {
-          end = j + 1;
-          break;
-        }
-      }
-    }
-    if (end < 0) break;
-    objs.push(text.slice(start, end));
-    i = end;
-  }
-  return objs;
-}
-function extractProposal(text) {
-  let last = null;
-  let lastSubstantive = null;
-  for (const raw of topLevelObjects(text)) {
-    let obj;
-    try {
-      obj = JSON.parse(raw);
-    } catch {
-      continue;
-    }
-    if (!obj || typeof obj !== "object" || !Array.isArray(obj.upsert)) continue;
-    const p = {
-      upsert: obj.upsert,
-      remove: Array.isArray(obj.remove) ? obj.remove : [],
-      decisionMoves: Array.isArray(obj.decisionMoves) ? obj.decisionMoves : [],
-      groupUpsert: Array.isArray(obj.groupUpsert) ? obj.groupUpsert : []
-    };
-    last = p;
-    if (p.upsert.length > 0 || p.remove.length > 0 || p.decisionMoves.length > 0 || (p.groupUpsert?.length ?? 0) > 0) lastSubstantive = p;
-  }
-  return lastSubstantive ?? last;
-}
-function withStderr(reason, stderr, max = 2048) {
-  const tail = stderr.trim().slice(-max);
-  return tail ? `${reason} | stderr: ${tail}` : reason;
-}
-function withResultTail(reason, text, max = 800) {
-  const tail = text.trim().slice(-max);
-  return tail ? `${reason} | result tail: ${tail}` : reason;
-}
-function claudeCliRunnerWith(spawnImpl) {
-  return (input) => new Promise((resolve2) => {
-    const byok = !!input.byokKey;
-    const args = buildClaudeArgs({ model: input.model ?? DEFAULT_MODEL, byok, mode: input.mode, oneShot: input.oneShot });
-    const env = buildClaudeEnv(process.env, { byokKey: input.byokKey });
-    const child = spawnImpl("claude", args, { cwd: input.repoRoot, env, stdio: ["pipe", "pipe", "pipe"] });
-    let out = "";
-    let err = "";
-    child.stdout.on("data", (c) => {
-      out += c.toString();
-    });
-    child.stderr.on("data", (c) => {
-      err = (err + c.toString()).slice(-4096);
-    });
-    child.on("error", () => resolve2({ ok: false, reason: withStderr("claude CLI not found or failed to spawn", err) }));
-    child.on("close", () => {
-      const envlp = parseClaudeEnvelope(out);
-      if (!envlp || envlp.isError) return resolve2({ ok: false, reason: withStderr(`claude -p error: ${envlp ? "error subtype" : "unparseable output"}`, err) });
-      const proposal = extractProposal(envlp.text);
-      if (!proposal) return resolve2({ ok: false, reason: withStderr(withResultTail("no valid proposal in result", envlp.text), err) });
-      resolve2({ ok: true, proposal, costUsd: envlp.costUsd, raw: out });
-    });
-    child.stdin.on("error", () => resolve2({ ok: false, reason: withStderr("claude exited before reading the prompt (stdin error)", err) }));
-    child.stdin.write(input.prompt);
-    child.stdin.end();
-  });
-}
-var claudeCliRunner = claudeCliRunnerWith(spawn3);
-
-// src/reconcile/hash-state.ts
-import { createHash } from "node:crypto";
-import { readFileSync as readFileSync6 } from "node:fs";
-import { join as join12 } from "node:path";
-var STATE_FILE = ".reconcile-hashes.json";
-function readHashState(repoRoot) {
-  try {
-    const d = JSON.parse(readFileSync6(join12(repoRoot, ".visflow", STATE_FILE), "utf8"));
-    if (!d || typeof d !== "object" || Array.isArray(d)) return {};
-    const out = {};
-    for (const [k, v] of Object.entries(d)) if (typeof v === "string") out[k] = v;
-    return out;
-  } catch {
-    return {};
-  }
-}
-function hashContent(content) {
-  return createHash("sha256").update(content).digest("hex");
-}
-function hashFileContent(repoRoot, rel) {
-  try {
-    return hashContent(readFileSync6(join12(repoRoot, rel)));
-  } catch {
-    return null;
-  }
-}
-function updateHashState(repoRoot, files, preset = {}) {
-  const state = readHashState(repoRoot);
-  for (const rel of files) {
-    const h = preset[rel] ?? hashFileContent(repoRoot, rel);
-    if (h === null) delete state[rel];
-    else state[rel] = h;
-  }
-  writeJsonAtomic(join12(repoRoot, ".visflow", STATE_FILE), state);
-}
-
-// src/reconcile/index.ts
-import { join as join13, sep as sep3 } from "node:path";
-import { existsSync as existsSync6, readFileSync as readFileSync7, realpathSync as realpathSync3 } from "node:fs";
-var INLINE_CAP_BYTES = 48 * 1024;
-var hashGuardFiles = (changedFiles) => [".visflow/graph.json", ...changedFiles];
-async function runReconcile(repoRoot, opts = {}) {
-  const now = opts.now ?? (() => (/* @__PURE__ */ new Date()).toISOString());
-  const llm = opts.llm ?? claudeCliRunner;
-  const guard = acquireRunGuard(repoRoot);
-  if (!guard.acquired) return { applied: false, reason: "already-running" };
-  try {
-    const swept = sweepAbandonedDrains(repoRoot);
-    const drained = drainEvents(repoRoot);
-    const events = drained.events;
-    const notes = [swept.note, drained.note].filter(Boolean).join(" \xB7 ") || void 0;
-    const note = notes ? ` \xB7 ${notes}` : "";
-    const stamp = (m) => updateMeta(repoRoot, (cur) => ({ ...cur, version: 1, ...m }));
-    if (!shouldReconcile({ events, force: opts.force })) {
-      const gcReason = await ghostGcOnly(repoRoot, stamp, now);
-      drained.commit();
-      if (gcReason) return { applied: true, reason: gcReason };
-      return { applied: false, reason: `gate: skipped${note}` };
-    }
-    const fail = (m, reason, failOpts) => {
-      const abandoned = drained.restore(failOpts);
-      const suffix = abandoned > 0 ? ` \xB7 ${abandoned} event(s) abandoned after ${MAX_EVENT_RETRIES} attempts` : "";
-      stamp({ ...m, lastReason: `${m.lastReason ?? ""}${suffix}${note}` || void 0 });
-      return { applied: false, reason };
-    };
-    stamp({ lastResult: "running", lastReason: void 0, startedAt: now(), scope: void 0 });
-    const loaded = loadGraph(repoRoot);
-    if (!loaded.ok) return fail({ lastResult: "error", lastReason: `graph unavailable: ${loaded.error.kind}` }, "graph unavailable");
-    const diskGraph = loaded.graph;
-    const graphHashAtLoad = hashContent(loaded.raw);
-    const prevFingerprint = JSON.stringify(diskGraph);
-    const gc = applyGhostGc(diskGraph, repoRoot);
-    const prevGraph = gc ? gc.graph : diskGraph;
-    const ghostNote = gc?.note;
-    const decisions = readDecisions(repoRoot);
-    const orphanIds = findOrphans(prevGraph.nodes.map((n) => n.id), decisions);
-    const orphanDecisions = {
-      version: 1,
-      decisions: Object.fromEntries(orphanIds.filter((id) => decisions.decisions[id]).map((id) => [id, decisions.decisions[id]]))
-    };
-    const mode = opts.force ? "full" : "scoped";
-    const scope = mode === "scoped" ? resolveAffectedNodes(events, prevGraph, repoRoot) : void 0;
-    const projection = mode === "scoped" ? "projected" : "full";
-    if (mode === "scoped" && scope && !gc && scope.newFiles.length === 0 && orphanIds.length === 0 && scope.changedFiles.length > 0) {
-      const hashState = readHashState(repoRoot);
-      const scopeIds = /* @__PURE__ */ new Set([...scope.affectedNodeIds, ...scope.neighborNodeIds]);
-      const allPresent = prevGraph.nodes.filter((n) => scopeIds.has(n.id)).flatMap((n) => n.files).every((f) => existsSync6(join13(repoRoot, f)));
-      const unchanged = allPresent && hashGuardFiles(scope.changedFiles).every((f) => {
-        const h = hashFileContent(repoRoot, f);
-        return h !== null && h === hashState[f];
-      });
-      if (unchanged) {
-        drained.commit();
-        stamp({
-          lastResult: "no-op",
-          lastSync: now(),
-          lastReason: ["hash-skip: changed files byte-identical to last reconcile (graph-bound, all scope files present)", notes].filter(Boolean).join(" \xB7 ") || void 0,
-          cost: { totalUsd: 0 },
-          scope: { mode, promptBytes: 0, changedFiles: scope.changedFiles, affectedNodeIds: scope.affectedNodeIds, neighborCount: scope.neighborNodeIds.length, newFiles: [] }
-        });
-        return { applied: false, reason: "no-op (hash-skip)" };
-      }
-    }
-    let inlineFiles;
-    let inlineSkipped;
-    if (mode === "scoped" && scope && opts.inline !== false) {
-      const scopeIds = /* @__PURE__ */ new Set([...scope.affectedNodeIds, ...scope.neighborNodeIds]);
-      const scopeNodeFiles = prevGraph.nodes.filter((n) => scopeIds.has(n.id)).flatMap((n) => n.files);
-      const demoted = scope.neighborNodeIds.length > NEIGHBOR_FULL_MAX;
-      const neighborFiles = demoted ? [] : [...new Set(prevGraph.nodes.filter((n) => scope.neighborNodeIds.includes(n.id)).flatMap((n) => n.files))];
-      const readable = /* @__PURE__ */ new Set([...scope.changedFiles, ...neighborFiles]);
-      const collected = [];
-      let bytes = 0;
-      const realRoot = realpathSync3(repoRoot);
-      for (const rel of /* @__PURE__ */ new Set([...readable, ...scopeNodeFiles])) {
-        let contents;
-        try {
-          const real = realpathSync3(join13(repoRoot, rel));
-          if (real !== realRoot && !real.startsWith(realRoot + sep3)) {
-            inlineSkipped = "out-of-repo";
-            collected.length = 0;
-            break;
-          }
-          contents = readFileSync7(real, "utf8");
-        } catch {
-          inlineSkipped = "unreadable";
-          collected.length = 0;
-          break;
-        }
-        if (!readable.has(rel)) continue;
-        bytes += Buffer.byteLength(contents, "utf8");
-        if (bytes > INLINE_CAP_BYTES) {
-          inlineSkipped = "cap";
-          collected.length = 0;
-          break;
-        }
-        collected.push({ path: rel, contents });
-      }
-      if (collected.length > 0) inlineFiles = collected;
-    }
-    let excludePaths;
-    if (mode === "scoped" && scope && !inlineFiles) {
-      const realRoot = realpathSync3(repoRoot);
-      const neighborFiles = [...new Set(prevGraph.nodes.filter((n) => scope.neighborNodeIds.includes(n.id)).flatMap((n) => n.files))];
-      const out = [.../* @__PURE__ */ new Set([...scope.changedFiles, ...neighborFiles])].filter((rel) => {
-        try {
-          const real = realpathSync3(join13(repoRoot, rel));
-          return real !== realRoot && !real.startsWith(realRoot + sep3);
-        } catch {
-          return false;
-        }
-      });
-      if (out.length > 0) excludePaths = out;
-    }
-    const prompt = buildReconcilePrompt({ mode, graph: prevGraph, orphanDecisions, orphanIds, scope, projection, inlineFiles, excludePaths });
-    const oneShot = !!inlineFiles;
-    stamp({
-      lastResult: "running",
-      scope: {
-        mode,
-        promptBytes: Buffer.byteLength(prompt, "utf8"),
-        ...mode === "scoped" && scope ? { changedFiles: scope.changedFiles, affectedNodeIds: scope.affectedNodeIds, neighborCount: scope.neighborNodeIds.length, newFiles: scope.newFiles } : {},
-        ...oneShot ? { inline: true } : {},
-        ...inlineSkipped ? { inlineSkipped } : {}
-      }
-    });
-    const result = await llm({ repoRoot, prompt, mode, oneShot });
-    if (!result.ok) return fail({ lastResult: "error", lastReason: result.reason }, result.reason);
-    const merged = applyPatch(prevGraph, {
-      upsert: result.proposal.upsert,
-      remove: result.proposal.remove,
-      groupUpsert: result.proposal.groupUpsert
-    });
-    const sanitized = sanitizeDanglingEdges(merged);
-    const groupSan = sanitizeGroups(prevGraph, sanitized.graph);
-    const gv = validateGraph(groupSan.graph);
-    if (!gv.ok) return fail({ lastResult: "skipped", lastReason: `validateGraph: ${gv.errors[0] ?? "invalid"}` }, "invalid graph");
-    const proposed = gv.graph;
-    const nl = checkNodeLoss(prevGraph, proposed, repoRoot);
-    if (!nl.ok) return fail({ lastResult: "skipped", lastReason: `node-loss: ${nl.lost.join(",")}` }, "node loss");
-    const graphUnchanged = JSON.stringify(proposed) === prevFingerprint;
-    if (graphUnchanged && !result.proposal.decisionMoves.length) {
-      drained.commit();
-      if (scope) updateHashState(repoRoot, hashGuardFiles(scope.changedFiles), { ".visflow/graph.json": graphHashAtLoad });
-      stamp({ lastResult: "no-op", lastSync: now(), lastReason: notes, cost: { totalUsd: result.costUsd ?? void 0 } });
-      return { applied: false, reason: "no-op (graph unchanged)" };
-    }
-    const outcome = await withLock(repoRoot, () => {
-      const recheck = loadGraph(repoRoot);
-      if (!recheck.ok || JSON.stringify(recheck.graph) !== prevFingerprint) return "stale";
-      if (!graphUnchanged) writeJsonAtomic(join13(repoRoot, ".visflow", "graph.json"), proposed);
-      if (result.proposal.decisionMoves.length) {
-        const current = readDecisions(repoRoot);
-        const merged2 = applyMoves(current, result.proposal.decisionMoves, new Set(proposed.nodes.map((n) => n.id)));
-        const dv = validateDecisions(merged2);
-        if (dv.ok) writeJsonAtomic(join13(repoRoot, ".visflow", "decisions.json"), merged2);
-      }
-      return "ok";
-    });
-    if (outcome === "stale") return fail({ lastResult: "skipped", lastReason: "graph changed mid-run" }, "stale graph", { bumpRetry: false });
-    drained.commit();
-    if (scope) updateHashState(repoRoot, hashGuardFiles(scope.changedFiles));
-    const droppedNote = sanitized.dropped.length ? `applied (dropped ${sanitized.dropped.length} dangling edge(s): ${sanitized.dropped.map((d) => `${d.nodeId}\u2192${d.depId}`).join(", ")})` : void 0;
-    const groupNote = [
-      groupSan.restored.length ? `restored ${groupSan.restored.length} sticky group ref(s): ${groupSan.restored.map((r) => `${r.nodeId}\u2192${r.group}`).join(", ")}` : void 0,
-      groupSan.droppedRefs.length ? `dropped ${groupSan.droppedRefs.length} dangling group ref(s): ${groupSan.droppedRefs.map((d) => `${d.nodeId}\u2192${d.group}`).join(", ")}` : void 0,
-      groupSan.prunedGroups.length ? `pruned ${groupSan.prunedGroups.length} empty group(s): ${groupSan.prunedGroups.join(", ")}` : void 0
-    ].filter(Boolean).join(" \xB7 ") || void 0;
-    stamp({
-      lastResult: "applied",
-      lastSync: now(),
-      lastReason: [droppedNote, groupNote, ghostNote, notes].filter(Boolean).join(" \xB7 ") || void 0,
-      cost: { totalUsd: result.costUsd ?? void 0 }
-    });
-    return { applied: true, reason: "applied" };
-  } finally {
-    guard.release();
-  }
-}
-function applyMoves(file, moves, validIds) {
-  const decisions = { ...file.decisions };
-  for (const move of moves) {
-    if (!move) continue;
-    const { fromId, toId } = move;
-    if (fromId === toId) continue;
-    if (!validIds.has(toId)) continue;
-    if (!Object.hasOwn(decisions, fromId)) continue;
-    decisions[toId] = [...decisions[toId] ?? [], ...decisions[fromId]];
-    delete decisions[fromId];
-  }
-  return { version: 1, decisions };
-}
-function applyGhostGc(graph, repoRoot) {
-  const ids = findGhostNodeIds(graph, repoRoot);
-  if (ids.length === 0) return null;
-  const sanitized = sanitizeDanglingEdges(applyPatch(graph, { upsert: [], remove: ids }));
-  const groupSan = sanitizeGroups(graph, sanitized.graph);
-  const gv = validateGraph(groupSan.graph);
-  if (!gv.ok) return null;
-  const nl = checkNodeLoss(graph, gv.graph, repoRoot);
-  if (!nl.ok) return null;
-  const pruneNote = groupSan.prunedGroups.length ? ` (pruned empty group(s): ${groupSan.prunedGroups.join(", ")})` : "";
-  const dropNote = sanitized.dropped.length ? ` (dropped ${sanitized.dropped.length} dangling edge(s): ${sanitized.dropped.map((d) => `${d.nodeId}\u2192${d.depId}`).join(", ")})` : "";
-  return { graph: gv.graph, ids, note: `ghost-gc: ${ids.join(", ")}${dropNote}${pruneNote}` };
-}
-async function ghostGcOnly(repoRoot, stamp, now) {
-  const loaded = loadGraph(repoRoot);
-  if (!loaded.ok) return null;
-  const gc = applyGhostGc(loaded.graph, repoRoot);
-  if (!gc) return null;
-  const fingerprint = JSON.stringify(loaded.graph);
-  const outcome = await withLock(repoRoot, () => {
-    const recheck = loadGraph(repoRoot);
-    if (!recheck.ok || JSON.stringify(recheck.graph) !== fingerprint) return "stale";
-    writeJsonAtomic(join13(repoRoot, ".visflow", "graph.json"), gc.graph);
-    return "ok";
-  });
-  if (outcome === "stale") return null;
-  stamp({ lastResult: "applied", lastSync: now(), lastReason: gc.note, cost: { totalUsd: 0 }, scope: void 0 });
-  return gc.note;
-}
-function stampCrash(repoRoot, err) {
-  try {
-    const msg = err instanceof Error ? err.message : String(err);
-    updateMeta(repoRoot, (m) => m.lastResult === "running" ? { ...m, lastResult: "error", lastReason: `crashed: ${msg}`.slice(0, 500) } : m);
-  } catch {
-  }
-}
-async function main() {
-  const repoRoot = process.cwd();
-  process.on("uncaughtException", (e) => {
-    stampCrash(repoRoot, e);
-    process.exit(1);
-  });
-  process.on("unhandledRejection", (e) => {
-    stampCrash(repoRoot, e);
-    process.exit(1);
-  });
-  const res = await runReconcile(repoRoot, { force: process.argv.includes("--force") });
-  if (!res.applied) console.error(`visflow reconcile: ${res.reason}`);
-}
-if (isMain(import.meta.url)) void main();
 
 // src/cli/index.ts
 function runValidate(repoRoot) {
@@ -29366,7 +28397,7 @@ function parseOpenArgs(rest) {
     open: !rest.includes("--no-open")
   };
 }
-async function main2(argv) {
+async function main(argv) {
   const [command, ...rest] = argv;
   const repoRoot = process.cwd();
   if (command === "validate") {
@@ -29393,7 +28424,7 @@ async function main2(argv) {
     process.exit(1);
   }
 }
-if (isMain(import.meta.url)) void main2(process.argv.slice(2));
+if (isMain(import.meta.url)) void main(process.argv.slice(2));
 export {
   openErrorLines,
   parseOpenArgs,
