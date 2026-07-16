@@ -5,6 +5,9 @@
     ],
     "Stop": [
       { "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/dist/hooks/reconcile-stop.js" }] }
+    ],
+    "SubagentStop": [
+      { "hooks": [{ "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/dist/hooks/record-exploration.js" }] }
     ]
   }
 }

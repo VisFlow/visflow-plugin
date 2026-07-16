@@ -3,8 +3,8 @@ import { createRequire as __cr } from 'node:module'; const require = __cr(import
 // src/hooks/reconcile-stop.ts
 import { spawn } from "node:child_process";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
-import { dirname as dirname2, join as join5 } from "node:path";
-import { readFileSync as readFileSync5, existsSync as existsSync3 } from "node:fs";
+import { dirname as dirname2, join as join6 } from "node:path";
+import { readFileSync as readFileSync6, existsSync as existsSync4 } from "node:fs";
 
 // src/core/is-main.ts
 import { realpathSync } from "node:fs";
@@ -109,6 +109,34 @@ function drainEvents(repoRoot) {
   };
 }
 
+// src/core/feedback-targets.ts
+import { appendFileSync as appendFileSync2, existsSync as existsSync2, mkdirSync as mkdirSync2, readFileSync as readFileSync3, renameSync as renameSync3, rmSync as rmSync3 } from "node:fs";
+import { join as join2 } from "node:path";
+function targetsPath(repoRoot) {
+  return join2(repoRoot, ".visflow", "feedback-targets.log");
+}
+function parseTargets(raw) {
+  const nodeIds = /* @__PURE__ */ new Set();
+  const files = /* @__PURE__ */ new Set();
+  for (const line of raw.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      const rec = JSON.parse(line);
+      for (const n of rec.nodes ?? []) if (typeof n === "string") nodeIds.add(n);
+      for (const f of rec.files ?? []) if (typeof f === "string") files.add(f);
+    } catch {
+    }
+  }
+  return { nodeIds: [...nodeIds], files: [...files] };
+}
+function readTargets(repoRoot) {
+  try {
+    return parseTargets(readFileSync3(targetsPath(repoRoot), "utf8"));
+  } catch {
+    return { nodeIds: [], files: [] };
+  }
+}
+
 // src/core/run-guard.ts
 var GUARD_TTL_MS = 10 * 60 * 1e3;
 
@@ -120,27 +148,27 @@ function shouldReconcile(input) {
 }
 
 // src/core/meta.ts
-import { readFileSync as readFileSync3, existsSync as existsSync2, writeFileSync as writeFileSync2, rmSync as rmSync3, statSync as statSync2, mkdirSync as mkdirSync3 } from "node:fs";
-import { join as join3 } from "node:path";
+import { readFileSync as readFileSync4, existsSync as existsSync3, writeFileSync as writeFileSync2, rmSync as rmSync4, statSync as statSync2, mkdirSync as mkdirSync4 } from "node:fs";
+import { join as join4 } from "node:path";
 
 // src/core/atomic.ts
-import { writeFileSync, renameSync as renameSync3, mkdirSync as mkdirSync2 } from "node:fs";
-import { dirname, basename, join as join2 } from "node:path";
+import { writeFileSync, renameSync as renameSync4, mkdirSync as mkdirSync3 } from "node:fs";
+import { dirname, basename, join as join3 } from "node:path";
 function writeJsonAtomic(targetPath, data) {
   const dir = dirname(targetPath);
-  mkdirSync2(dir, { recursive: true });
-  const tmp = join2(dir, `.${basename(targetPath)}.tmp-${process.pid}-${Date.now()}`);
+  mkdirSync3(dir, { recursive: true });
+  const tmp = join3(dir, `.${basename(targetPath)}.tmp-${process.pid}-${Date.now()}`);
   writeFileSync(tmp, JSON.stringify(data, null, 2) + "\n");
-  renameSync3(tmp, targetPath);
+  renameSync4(tmp, targetPath);
 }
 
 // src/core/meta.ts
 function metaPath(repoRoot) {
-  return join3(repoRoot, ".visflow", "meta.json");
+  return join4(repoRoot, ".visflow", "meta.json");
 }
 function readMeta(repoRoot) {
   try {
-    const d = JSON.parse(readFileSync3(metaPath(repoRoot), "utf8"));
+    const d = JSON.parse(readFileSync4(metaPath(repoRoot), "utf8"));
     return {
       version: 1,
       lastSync: d.lastSync ?? null,
@@ -161,8 +189,8 @@ function writeMeta(repoRoot, meta) {
 function updateMeta(repoRoot, update, opts = {}) {
   const lockTimeoutMs = opts.lockTimeoutMs ?? 1500;
   const staleMs = opts.staleMs ?? 1e3;
-  const lockPath = join3(repoRoot, ".visflow", ".meta-lock");
-  mkdirSync3(join3(repoRoot, ".visflow"), { recursive: true });
+  const lockPath = join4(repoRoot, ".visflow", ".meta-lock");
+  mkdirSync4(join4(repoRoot, ".visflow"), { recursive: true });
   const deadline = Date.now() + lockTimeoutMs;
   let locked = false;
   while (Date.now() < deadline) {
@@ -173,7 +201,7 @@ function updateMeta(repoRoot, update, opts = {}) {
     } catch {
       try {
         if (Date.now() - statSync2(lockPath).mtimeMs > staleMs) {
-          rmSync3(lockPath, { force: true });
+          rmSync4(lockPath, { force: true });
           continue;
         }
       } catch {
@@ -189,7 +217,7 @@ function updateMeta(repoRoot, update, opts = {}) {
   } finally {
     if (locked) {
       try {
-        if (readFileSync3(lockPath, "utf8") === `${process.pid}`) rmSync3(lockPath, { force: true });
+        if (readFileSync4(lockPath, "utf8") === `${process.pid}`) rmSync4(lockPath, { force: true });
       } catch {
       }
     }
@@ -197,16 +225,16 @@ function updateMeta(repoRoot, update, opts = {}) {
 }
 
 // src/license/state.ts
-import { mkdirSync as mkdirSync4, readFileSync as readFileSync4, writeFileSync as writeFileSync3, renameSync as renameSync4 } from "node:fs";
+import { mkdirSync as mkdirSync5, readFileSync as readFileSync5, writeFileSync as writeFileSync3, renameSync as renameSync5 } from "node:fs";
 import { homedir } from "node:os";
-import { join as join4 } from "node:path";
+import { join as join5 } from "node:path";
 function licenseDir(env) {
-  return env.VISFLOW_LICENSE_DIR ?? join4(homedir(), ".config", "visflow");
+  return env.VISFLOW_LICENSE_DIR ?? join5(homedir(), ".config", "visflow");
 }
-var statePath = (env) => join4(licenseDir(env), "license.json");
+var statePath = (env) => join5(licenseDir(env), "license.json");
 function readLicenseState(env) {
   try {
-    const parsed = JSON.parse(readFileSync4(statePath(env), "utf8"));
+    const parsed = JSON.parse(readFileSync5(statePath(env), "utf8"));
     return parsed && typeof parsed === "object" ? parsed : null;
   } catch {
     return null;
@@ -264,8 +292,8 @@ function checkEntitlementCached(env, now = /* @__PURE__ */ new Date()) {
 
 // src/hooks/reconcile-stop.ts
 function liveRunGuard(repoRoot) {
-  const guard = join5(repoRoot, ".visflow", ".reconcile-running");
-  return existsSync3(guard) && !isStalePidFile(guard, GUARD_TTL_MS);
+  const guard = join6(repoRoot, ".visflow", ".reconcile-running");
+  return existsSync4(guard) && !isStalePidFile(guard, GUARD_TTL_MS);
 }
 function writeSkip(repoRoot, ts, reason) {
   updateMeta(repoRoot, (m) => ({ ...m, version: 1, lastSkip: { ts, reason } }));
@@ -282,7 +310,9 @@ function handleStop(payloadRaw, env, deps) {
   const cwd = p.cwd;
   if (!cwd) return { spawned: false, reason: "no cwd" };
   const events = deps.readEvents(cwd);
-  if (!shouldReconcile({ events })) {
+  const targets = (deps.readTargets ?? readTargets)(cwd);
+  const hasTargets = targets.nodeIds.length > 0 || targets.files.length > 0;
+  if (!shouldReconcile({ events }) && !hasTargets) {
     if (events.length > 0) {
       const ts = (deps.now ?? (() => (/* @__PURE__ */ new Date()).toISOString()))();
       if (liveRunGuard(cwd)) {
@@ -303,7 +333,7 @@ function handleStop(payloadRaw, env, deps) {
   return { spawned: true, reason: "spawned" };
 }
 function spawnReconcileDetached(repoRoot) {
-  const reconcileEntry = join5(dirname2(fileURLToPath2(import.meta.url)), "..", "reconcile", "index.js");
+  const reconcileEntry = join6(dirname2(fileURLToPath2(import.meta.url)), "..", "reconcile", "index.js");
   const child = spawn(process.execPath, [reconcileEntry], {
     cwd: repoRoot,
     env: { ...process.env, VISFLOW_RECONCILING: "1" },
@@ -316,7 +346,7 @@ function main() {
   try {
     let raw = "";
     try {
-      raw = readFileSync5(0, "utf8");
+      raw = readFileSync6(0, "utf8");
     } catch {
       return;
     }

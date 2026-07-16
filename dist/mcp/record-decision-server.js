@@ -21298,7 +21298,29 @@ async function withLock(repoRoot2, fn, opts = {}) {
   }
 }
 
+// src/schema/decisions-schema.ts
+var DecisionSchema = external_exports.object({
+  what: external_exports.string().min(1).max(MAX_TEXT),
+  // cost-bomb guard (2026-07-07 review)
+  why: external_exports.string().min(1).max(MAX_TEXT),
+  source: external_exports.enum(["tool", "inferred"]).optional(),
+  ts: external_exports.string().optional()
+});
+var DecisionsFileSchema = external_exports.object({
+  version: external_exports.literal(1),
+  decisions: external_exports.record(external_exports.string().max(MAX_NAME), external_exports.array(DecisionSchema))
+});
+function validateDecisions(data) {
+  const parsed = DecisionsFileSchema.safeParse(data);
+  if (!parsed.success) {
+    return { ok: false, errors: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`) };
+  }
+  return { ok: true };
+}
+
 // src/core/decisions.ts
+var DecisionsInvalidError = class extends Error {
+};
 function decisionsPath(repoRoot2) {
   return join4(repoRoot2, ".visflow", "decisions.json");
 }
@@ -21309,13 +21331,20 @@ function readDecisions(repoRoot2) {
   } catch {
     return { version: 1, decisions: {} };
   }
+  let data;
   try {
-    const data = JSON.parse(raw);
-    const decisions = data && typeof data === "object" && data.decisions ? data.decisions : {};
-    return { version: 1, decisions };
+    data = JSON.parse(raw);
   } catch {
     return { version: 1, decisions: {} };
   }
+  const result = validateDecisions(data);
+  if (!result.ok) {
+    throw new DecisionsInvalidError(
+      `Invalid .visflow/decisions.json (hand-editable \u2014 fix and retry):
+${result.errors.map((e) => `  - ${e}`).join("\n")}`
+    );
+  }
+  return data;
 }
 function writeAtomic(repoRoot2, file) {
   writeJsonAtomic(decisionsPath(repoRoot2), file);
@@ -21333,8 +21362,43 @@ async function recordDecision(repoRoot2, component, what, why, now = () => (/* @
   return { ok: true, isKnownComponent };
 }
 
+// src/core/feedback-log.ts
+import { appendFileSync, mkdirSync as mkdirSync3, readFileSync as readFileSync4 } from "node:fs";
+import { join as join5 } from "node:path";
+function feedbackLogPath(repoRoot2) {
+  return join5(repoRoot2, ".visflow", "feedback.log");
+}
+function appendFeedback(repoRoot2, rec) {
+  try {
+    mkdirSync3(join5(repoRoot2, ".visflow"), { recursive: true });
+    appendFileSync(feedbackLogPath(repoRoot2), JSON.stringify(rec) + "\n");
+  } catch {
+  }
+}
+
+// src/core/feedback-targets.ts
+import { appendFileSync as appendFileSync2, existsSync, mkdirSync as mkdirSync4, readFileSync as readFileSync5, renameSync as renameSync3, rmSync as rmSync2 } from "node:fs";
+import { join as join6 } from "node:path";
+function targetsPath(repoRoot2) {
+  return join6(repoRoot2, ".visflow", "feedback-targets.log");
+}
+function enqueueTargets(repoRoot2, nodeIds, files = []) {
+  if (nodeIds.length === 0 && files.length === 0) return;
+  mkdirSync4(join6(repoRoot2, ".visflow"), { recursive: true });
+  appendFileSync2(targetsPath(repoRoot2), JSON.stringify({ nodes: nodeIds, files }) + "\n");
+}
+
 // src/mcp/record-decision-server.ts
 var TOOL_DESCRIPTION = "Record a notable architectural decision for a VisFlow component. Call this WHENEVER you make a notable architectural choice while building \u2014 pass { component, what, why }: component is the kebab-case component id from the VisFlow map, what is the choice you made, why is the reason. It only ever appends reasoning; it never creates or edits structure. If the component id is not in the map yet, the decision is still recorded and will surface once a node with that id exists.";
+var FEEDBACK_DESCRIPTION = "Report how the VisFlow briefing capsule for a task turned out. Call this ONCE at task end, using the SAME task-id you pulled the capsule with. Pass { taskId, verdict, nodes, files?, detail, relied? }. verdict is one of: misinformed (a seeded node's map data was WRONG \u2192 that node is re-derived from code), uninformed (needed context was MISSING from the map \u2192 name the files/nodes so they get mapped), had-to-search (the right node existed but you still had to search for more \u2014 a routing miss \u2192 surfaced to a human), ignored (the capsule had what you needed but you did not use it \u2192 surfaced to a human), matched (the briefing was accurate and sufficient). misinformed/uninformed automatically trigger a scoped re-reconcile of the named node(s) FROM CODE on the next sync; the map is never edited from this text \u2014 it only appends provenance and, when actionable, a re-reconcile target.";
+var ACTIONABLE_VERDICTS = /* @__PURE__ */ new Set(["misinformed", "uninformed"]);
+function applyFeedback(repoRoot2, rec) {
+  appendFeedback(repoRoot2, rec);
+  const hasTarget = rec.nodes.length > 0 || (rec.files?.length ?? 0) > 0;
+  const enqueued = ACTIONABLE_VERDICTS.has(rec.verdict) && hasTarget;
+  if (enqueued) enqueueTargets(repoRoot2, rec.nodes, rec.files ?? []);
+  return { enqueued };
+}
 function repoRoot() {
   return process.env.VISFLOW_REPO_ROOT ?? process.cwd();
 }
@@ -21361,6 +21425,39 @@ function buildServer() {
       };
     }
   );
+  server.registerTool(
+    "visflow_briefing_feedback",
+    {
+      title: "Report VisFlow briefing feedback",
+      description: FEEDBACK_DESCRIPTION,
+      inputSchema: {
+        taskId: external_exports.string().min(1).describe("The SAME --task-id you pulled the capsule with (joins to the briefing)."),
+        verdict: external_exports.enum(["misinformed", "uninformed", "had-to-search", "ignored", "matched"]).describe("How the briefing turned out."),
+        nodes: external_exports.array(external_exports.string()).default([]).describe("Component id(s) the verdict is about."),
+        files: external_exports.array(external_exports.string()).optional().describe("For uninformed: file path(s) that should have been mapped."),
+        detail: external_exports.string().min(1).describe("What was wrong, missing, or relied on."),
+        relied: external_exports.array(external_exports.string()).optional().describe("For matched: briefing claims you actually relied on.")
+      }
+    },
+    async ({ taskId, verdict, nodes, files, detail, relied }) => {
+      const { enqueued } = applyFeedback(repoRoot(), {
+        ts: (/* @__PURE__ */ new Date()).toISOString(),
+        taskId,
+        verdict,
+        nodes,
+        files,
+        detail,
+        relied,
+        source: "agent"
+      });
+      const note = enqueued ? " The named node(s) will be re-reconciled from code on the next sync." : "";
+      return {
+        content: [
+          { type: "text", text: `Recorded ${verdict} feedback for task "${taskId}".${note}` }
+        ]
+      };
+    }
+  );
   return server;
 }
 async function main() {
@@ -21370,5 +21467,6 @@ async function main() {
 }
 if (isMain(import.meta.url)) void main();
 export {
+  applyFeedback,
   buildServer
 };

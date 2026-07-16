@@ -43,7 +43,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 // node_modules/depd/index.js
 var require_depd = __commonJS({
   "node_modules/depd/index.js"(exports, module) {
-    var relative2 = __require("path").relative;
+    var relative3 = __require("path").relative;
     module.exports = depd;
     var basePath = process.cwd();
     function containsNamespace(str, namespace) {
@@ -235,7 +235,7 @@ var require_depd = __commonJS({
       return formatted;
     }
     function formatLocation(callSite) {
-      return relative2(basePath, callSite[0]) + ":" + callSite[1] + ":" + callSite[2];
+      return relative3(basePath, callSite[0]) + ":" + callSite[1] + ":" + callSite[2];
     }
     function getStack() {
       var limit = Error.stackTraceLimit;
@@ -14132,7 +14132,7 @@ var require_type_is = __commonJS({
     module.exports = typeofrequest;
     module.exports.is = typeis;
     module.exports.hasBody = hasbody;
-    module.exports.normalize = normalize;
+    module.exports.normalize = normalize2;
     module.exports.match = mimeMatch;
     function typeis(value, types_) {
       var i;
@@ -14152,7 +14152,7 @@ var require_type_is = __commonJS({
       }
       var type;
       for (i = 0; i < types.length; i++) {
-        if (mimeMatch(normalize(type = types[i]), val)) {
+        if (mimeMatch(normalize2(type = types[i]), val)) {
           return type[0] === "+" || type.indexOf("*") !== -1 ? val : type;
         }
       }
@@ -14175,7 +14175,7 @@ var require_type_is = __commonJS({
       var value = req.headers["content-type"];
       return typeis(value, types);
     }
-    function normalize(type) {
+    function normalize2(type) {
       if (typeof type !== "string") {
         return false;
       }
@@ -19290,7 +19290,7 @@ var require_view = __commonJS({
     var dirname2 = path.dirname;
     var basename = path.basename;
     var extname = path.extname;
-    var join8 = path.join;
+    var join12 = path.join;
     var resolve2 = path.resolve;
     module.exports = View;
     function View(name, options) {
@@ -19338,12 +19338,12 @@ var require_view = __commonJS({
     };
     View.prototype.resolve = function resolve3(dir, file) {
       var ext = this.ext;
-      var path2 = join8(dir, file);
+      var path2 = join12(dir, file);
       var stat = tryStat(path2);
       if (stat && stat.isFile()) {
         return path2;
       }
-      path2 = join8(dir, basename(file, ext), "index" + ext);
+      path2 = join12(dir, basename(file, ext), "index" + ext);
       stat = tryStat(path2);
       if (stat && stat.isFile()) {
         return path2;
@@ -20400,10 +20400,10 @@ var require_send = __commonJS({
     var Stream = __require("stream");
     var util2 = __require("util");
     var extname = path.extname;
-    var join8 = path.join;
-    var normalize = path.normalize;
+    var join12 = path.join;
+    var normalize2 = path.normalize;
     var resolve2 = path.resolve;
-    var sep2 = path.sep;
+    var sep3 = path.sep;
     var BYTES_RANGE_REGEXP = /^ *bytes=/;
     var MAX_MAXAGE = 60 * 60 * 24 * 365 * 1e3;
     var UP_PATH_REGEXP = /(?:^|[\\/])\.\.(?:[\\/]|$)/;
@@ -20611,22 +20611,22 @@ var require_send = __commonJS({
       var parts;
       if (root !== null) {
         if (path2) {
-          path2 = normalize("." + sep2 + path2);
+          path2 = normalize2("." + sep3 + path2);
         }
         if (UP_PATH_REGEXP.test(path2)) {
           debug('malicious path "%s"', path2);
           this.error(403);
           return res;
         }
-        parts = path2.split(sep2);
-        path2 = normalize(join8(root, path2));
+        parts = path2.split(sep3);
+        path2 = normalize2(join12(root, path2));
       } else {
         if (UP_PATH_REGEXP.test(path2)) {
           debug('malicious path "%s"', path2);
           this.error(403);
           return res;
         }
-        parts = normalize(path2).split(sep2);
+        parts = normalize2(path2).split(sep3);
         path2 = resolve2(path2);
       }
       if (containsDotFile(parts)) {
@@ -20724,7 +20724,7 @@ var require_send = __commonJS({
       var self = this;
       debug('stat "%s"', path2);
       fs.stat(path2, function onstat(err, stat) {
-        if (err && err.code === "ENOENT" && !extname(path2) && path2[path2.length - 1] !== sep2) {
+        if (err && err.code === "ENOENT" && !extname(path2) && path2[path2.length - 1] !== sep3) {
           return next(err);
         }
         if (err) return self.onStatError(err);
@@ -20754,7 +20754,7 @@ var require_send = __commonJS({
           if (err) return self.onStatError(err);
           return self.error(404);
         }
-        var p = join8(path2, self._index[i]);
+        var p = join12(path2, self._index[i]);
         debug('stat "%s"', p);
         fs.stat(p, function(err2, stat) {
           if (err2) return next(err2);
@@ -23178,7 +23178,7 @@ var require_response = __commonJS({
     var encodeUrl = require_encodeurl();
     var escapeHtml = require_escape_html();
     var http = __require("http");
-    var isAbsolute2 = require_utils2().isAbsolute;
+    var isAbsolute3 = require_utils2().isAbsolute;
     var onFinished = require_on_finished();
     var path = __require("path");
     var statuses = require_statuses();
@@ -23384,7 +23384,7 @@ var require_response = __commonJS({
         done = options;
         opts = {};
       }
-      if (!opts.root && !isAbsolute2(path2)) {
+      if (!opts.root && !isAbsolute3(path2)) {
         throw new TypeError("path must be absolute or specify root to res.sendFile");
       }
       var pathname = encodeURI(path2);
@@ -28046,6 +28046,32 @@ function loadGraph(repoRoot) {
 // src/core/decisions.ts
 import { readFileSync as readFileSync2 } from "node:fs";
 import { join as join2 } from "node:path";
+
+// src/schema/decisions-schema.ts
+var DecisionSchema = external_exports.object({
+  what: external_exports.string().min(1).max(MAX_TEXT),
+  // cost-bomb guard (2026-07-07 review)
+  why: external_exports.string().min(1).max(MAX_TEXT),
+  source: external_exports.enum(["tool", "inferred"]).optional(),
+  ts: external_exports.string().optional()
+});
+var DecisionsFileSchema = external_exports.object({
+  version: external_exports.literal(1),
+  decisions: external_exports.record(external_exports.string().max(MAX_NAME), external_exports.array(DecisionSchema))
+});
+function validateDecisions(data) {
+  const parsed = DecisionsFileSchema.safeParse(data);
+  if (!parsed.success) {
+    return { ok: false, errors: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`) };
+  }
+  return { ok: true };
+}
+
+// src/core/decisions.ts
+var DECISION_TOP_N = 3;
+var DECISION_TITLE_MAX = 60;
+var DecisionsInvalidError = class extends Error {
+};
 function decisionsPath(repoRoot) {
   return join2(repoRoot, ".visflow", "decisions.json");
 }
@@ -28056,60 +28082,32 @@ function readDecisions(repoRoot) {
   } catch {
     return { version: 1, decisions: {} };
   }
+  let data;
   try {
-    const data = JSON.parse(raw);
-    const decisions = data && typeof data === "object" && data.decisions ? data.decisions : {};
-    return { version: 1, decisions };
+    data = JSON.parse(raw);
   } catch {
     return { version: 1, decisions: {} };
   }
+  const result = validateDecisions(data);
+  if (!result.ok) {
+    throw new DecisionsInvalidError(
+      `Invalid .visflow/decisions.json (hand-editable \u2014 fix and retry):
+${result.errors.map((e) => `  - ${e}`).join("\n")}`
+    );
+  }
+  return data;
 }
 function findOrphans(nodeIds, decisions) {
   const known = new Set(nodeIds);
   return Object.keys(decisions.decisions).filter((id) => !known.has(id));
 }
-
-// src/server/server.ts
-import { fileURLToPath as fileURLToPath2 } from "node:url";
-import { dirname, join as join5 } from "node:path";
-import { existsSync as existsSync2 } from "node:fs";
-
-// src/core/open-url.ts
-import { spawn } from "node:child_process";
-function openUrlCommand(platform, url) {
-  if (platform === "darwin") return { cmd: "open", args: [url] };
-  if (platform === "win32") return { cmd: "cmd", args: ["/c", "start", "", url] };
-  return { cmd: "xdg-open", args: [url] };
-}
-function openUrl(url, spawnFn = spawn) {
-  const { cmd, args } = openUrlCommand(process.platform, url);
-  try {
-    const child = spawnFn(cmd, args, { stdio: "ignore", detached: true });
-    child.on("error", () => {
-    });
-    child.unref();
-  } catch {
-  }
-}
-
-// src/server/app.ts
-var import_express = __toESM(require_express2(), 1);
-
-// src/core/links.ts
-function computeDependents(graph) {
-  const dependents = {};
-  for (const n of graph.nodes) dependents[n.id] = [];
-  for (const n of graph.nodes) {
-    for (const dep of n.dependsOn) {
-      if (dependents[dep.id]) dependents[dep.id].push({ id: n.id, what: dep.what, why: dep.why });
-    }
-  }
-  return dependents;
-}
-function buildGraphResponse(graph, decisions = {}, meta = null) {
-  const merged = {};
-  for (const n of graph.nodes) merged[n.id] = decisions[n.id] ?? [];
-  return { version: graph.version, groups: graph.groups ?? [], nodes: graph.nodes, dependents: computeDependents(graph), decisions: merged, meta };
+function sortNewestFirst(list) {
+  return [...list].sort((a, b) => {
+    if (!a.ts && !b.ts) return 0;
+    if (!a.ts) return 1;
+    if (!b.ts) return -1;
+    return b.ts < a.ts ? -1 : b.ts > a.ts ? 1 : 0;
+  });
 }
 
 // src/core/meta.ts
@@ -28139,15 +28137,404 @@ function readMetaOrNull(repoRoot) {
   return existsSync(metaPath(repoRoot)) ? readMeta(repoRoot) : null;
 }
 
+// src/core/sync-status.ts
+var STALL_MS = 5 * 60 * 1e3;
+function relTime(iso, nowMs) {
+  const d = nowMs - Date.parse(iso);
+  if (!Number.isFinite(d) || d < 6e4) return "just now";
+  if (d < 36e5) return `${Math.floor(d / 6e4)}m ago`;
+  if (d < 864e5) return `${Math.floor(d / 36e5)}h ago`;
+  return `${Math.floor(d / 864e5)}d ago`;
+}
+function deriveSyncStatus(meta, nowMs) {
+  if (!meta?.lastResult) return { kind: "none" };
+  if (meta.lastResult === "running") {
+    const started = meta.startedAt ? Date.parse(meta.startedAt) : NaN;
+    if (!Number.isFinite(started)) return { kind: "reconciling" };
+    const elapsed = nowMs - started;
+    if (elapsed > STALL_MS) return { kind: "stalled", since: relTime(meta.startedAt, nowMs) };
+    if (elapsed > 6e4) return { kind: "reconciling", elapsed: `${Math.floor(elapsed / 6e4)}m` };
+    return { kind: "reconciling" };
+  }
+  if (meta.lastResult === "applied" || meta.lastResult === "no-op") {
+    const when = meta.lastSync ? relTime(meta.lastSync, nowMs) : "unknown";
+    return meta.lastReason ? { kind: "synced", when, note: meta.lastReason } : { kind: "synced", when };
+  }
+  return { kind: "attention", result: meta.lastResult, reason: meta.lastReason ?? "no reason recorded" };
+}
+function formatSyncStatus(s) {
+  return s.kind === "none" ? "never-reconciled" : s.kind === "synced" ? `synced (${s.when})` : s.kind === "reconciling" ? s.elapsed ? `reconciling (${s.elapsed})` : "reconciling" : s.kind === "stalled" ? `stalled (started ${s.since})` : `attention \u2014 ${s.result}: ${s.reason}`;
+}
+
+// src/core/context-index.ts
+function truncate(s, max) {
+  if (s.length <= max) return s;
+  const budget = max - 1;
+  let out = "";
+  for (const cp of s) {
+    if (out.length + cp.length > budget) break;
+    out += cp;
+  }
+  return `${out.trimEnd()}\u2026`;
+}
+function firstSentence(s) {
+  const m = s.match(/^[\s\S]*?[.!?](?=\s|$)/);
+  return (m ? m[0] : s).trim();
+}
+function runIndex(repoRoot, nowMs = Date.now()) {
+  const loaded = loadGraph(repoRoot);
+  if (!loaded.ok) return { code: 1, lines: loaded.error.messages };
+  const status = deriveSyncStatus(readMetaOrNull(repoRoot), nowMs);
+  const store = readDecisions(repoRoot);
+  const lines = [`VisFlow index \u2014 ${formatSyncStatus(status)} \xB7 ${loaded.graph.nodes.length} node(s)`, ""];
+  for (const n of loaded.graph.nodes) {
+    const decisions = sortNewestFirst(store.decisions[n.id] ?? []);
+    const titles = decisions.slice(0, DECISION_TOP_N).map((d) => truncate(d.what, DECISION_TITLE_MAX));
+    const extra = decisions.length - titles.length;
+    const tail = titles.length === 0 ? "" : ` \xB7 decisions: ${titles.join(" | ")}${extra > 0 ? ` (+${extra} more)` : ""}`;
+    lines.push(`- \`${n.id}\` \xB7 ${n.label} \xB7 ${n.layer} \xB7 ${truncate(firstSentence(n.reasoning.summary), 120)}${tail}`);
+  }
+  return { code: 0, lines };
+}
+
+// src/core/events-log.ts
+import { appendFileSync, mkdirSync as mkdirSync2, readFileSync as readFileSync4, renameSync, rmSync as rmSync2, existsSync as existsSync2, readdirSync } from "node:fs";
+import { join as join4 } from "node:path";
+function eventsLogPath(repoRoot) {
+  return join4(repoRoot, ".visflow", "events.log");
+}
+function parseEvents(raw) {
+  const out = [];
+  for (const line of raw.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      const ev = JSON.parse(line);
+      if (ev && typeof ev.file === "string") out.push(ev);
+    } catch {
+    }
+  }
+  return out;
+}
+function readEvents(repoRoot) {
+  try {
+    return parseEvents(readFileSync4(eventsLogPath(repoRoot), "utf8"));
+  } catch {
+    return [];
+  }
+}
+
+// src/core/paths.ts
+import { isAbsolute, normalize, relative, sep } from "node:path";
+function toRepoRelative(file, repoRoot) {
+  const rel = isAbsolute(file) ? relative(repoRoot, file) : normalize(file);
+  return rel.split(sep).join("/");
+}
+
+// src/core/links.ts
+function computeDependents(graph) {
+  const dependents = {};
+  for (const n of graph.nodes) dependents[n.id] = [];
+  for (const n of graph.nodes) {
+    for (const dep of n.dependsOn) {
+      if (dependents[dep.id]) dependents[dep.id].push({ id: n.id, what: dep.what, why: dep.why });
+    }
+  }
+  return dependents;
+}
+function buildGraphResponse(graph, decisions = {}, meta = null) {
+  const merged = {};
+  for (const n of graph.nodes) merged[n.id] = decisions[n.id] ?? [];
+  return { version: graph.version, groups: graph.groups ?? [], nodes: graph.nodes, dependents: computeDependents(graph), decisions: merged, meta };
+}
+
+// src/core/briefings-log.ts
+import { appendFileSync as appendFileSync2, mkdirSync as mkdirSync3, readFileSync as readFileSync5 } from "node:fs";
+import { join as join5 } from "node:path";
+function appendBriefing(repoRoot, rec) {
+  try {
+    mkdirSync3(join5(repoRoot, ".visflow"), { recursive: true });
+    appendFileSync2(join5(repoRoot, ".visflow", "briefings.log"), JSON.stringify(rec) + "\n");
+  } catch {
+  }
+}
+function readBriefings(repoRoot) {
+  let raw;
+  try {
+    raw = readFileSync5(join5(repoRoot, ".visflow", "briefings.log"), "utf8");
+  } catch {
+    return [];
+  }
+  const out = [];
+  for (const line of raw.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      const rec = JSON.parse(line);
+      if (rec && Array.isArray(rec.nodes) && typeof rec.task === "string") out.push(rec);
+    } catch {
+    }
+  }
+  return out;
+}
+
+// src/core/gate.ts
+var CODE_EXT = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|py|ipynb|go|rs|java|rb|php|c|h|cc|cpp|cxx|hh|hpp|hxx|cs|swift|kt|kts|scala|sql|vue|svelte|astro|dart|m|mm|ex|exs|erl|clj|cljs|cljc|hs|ml|mli|lua|r|jl|pl|pm|groovy|gradle|zig|nim|proto|graphql|gql|sh|bash|zsh)$/i;
+
+// src/core/context-capsule.ts
+var DEFAULT_BUDGET = 4e3;
+var FILES_RENDER_CAP = 40;
+var tokens = (lines) => Math.ceil(lines.join("\n").length / 4);
+var oneLiner = (n) => truncate(firstSentence(n.reasoning.summary), 120);
+var renderFiles = (files) => {
+  const shown = files.slice(0, FILES_RENDER_CAP);
+  const more = files.length - shown.length;
+  return `Files: ${shown.join(", ") || "(none)"}${more > 0 ? ` [+${more} more]` : ""}`;
+};
+function runContext(repoRoot, opts) {
+  const loaded = loadGraph(repoRoot);
+  if (!loaded.ok) return { code: 1, lines: loaded.error.messages };
+  const graph = loaded.graph;
+  if (opts.nodes.length === 0) return { code: 1, lines: ["no seed nodes \u2014 pass --nodes a,b"] };
+  const ids = [...new Set(opts.nodes)];
+  const byId = new Map(graph.nodes.map((n) => [n.id, n]));
+  const unknown = ids.filter((id) => !byId.has(id));
+  if (unknown.length > 0) {
+    const lines = unknown.map((q) => {
+      const ql = q.toLowerCase();
+      const near = graph.nodes.map((n) => n.id).filter((id) => {
+        const il = id.toLowerCase();
+        return il.includes(ql) || ql.includes(il);
+      });
+      return near.length > 0 ? `unknown node \`${q}\`; did you mean ${near.map((id) => `\`${id}\``).join(", ")}?` : `unknown node \`${q}\`; no similar node ids`;
+    });
+    return { code: 1, lines };
+  }
+  const seeds = ids.map((id) => byId.get(id));
+  const seedIds = new Set(ids);
+  const outbound = /* @__PURE__ */ new Map();
+  for (const s of seeds) for (const d of s.dependsOn) if (!seedIds.has(d.id)) outbound.set(d.id, byId.get(d.id));
+  const dependents = computeDependents(graph);
+  const reverseEdges = [];
+  for (const s of seeds) for (const dep of dependents[s.id] ?? []) {
+    if (seedIds.has(dep.id)) continue;
+    reverseEdges.push({ from: byId.get(dep.id), toId: s.id, link: dep });
+  }
+  const events = readEvents(repoRoot);
+  const rels = events.map((e) => toRepoRelative(e.file, repoRoot));
+  const codeRels = rels.filter((f) => CODE_EXT.test(f));
+  const nonCodeCount = rels.length - codeRels.length;
+  const countFor = (n) => {
+    const owned = new Set(n.files);
+    return codeRels.filter((f) => owned.has(f)).length;
+  };
+  const closure = [...seeds, ...outbound.values(), ...reverseEdges.map((e) => e.from)];
+  const closureIds = new Set(closure.map((n) => n.id));
+  const counts = /* @__PURE__ */ new Map();
+  for (const n of closure) {
+    const c = countFor(n);
+    if (c > 0) counts.set(n.id, c);
+  }
+  const outsideCounts = /* @__PURE__ */ new Map();
+  for (const n of graph.nodes) {
+    if (closureIds.has(n.id)) continue;
+    const c = countFor(n);
+    if (c > 0) outsideCounts.set(n.id, c);
+  }
+  const allFiles = new Set(graph.nodes.flatMap((n) => n.files));
+  const unmapped = [...new Set(codeRels.filter((f) => !allFiles.has(f)))];
+  const meta = readMetaOrNull(repoRoot);
+  const status = formatSyncStatus(deriveSyncStatus(meta, opts.nowMs ?? Date.now()));
+  const store = readDecisions(repoRoot);
+  const budget = opts.budget ?? DEFAULT_BUDGET;
+  const seedViews = seeds.map((n) => ({
+    node: n,
+    decisions: sortNewestFirst(store.decisions[n.id] ?? []),
+    omitted: 0
+  }));
+  let dropReverseWhys = false;
+  const renderCapsule = () => {
+    const lines = [`VisFlow context \u2014 ${status}${opts.task ? ` \xB7 task: ${opts.task}` : ""}`];
+    if (meta?.lastResult === "running") {
+      lines.push("caveat: reconcile in flight \u2014 pending-edit flags may be incomplete; sections below may be updated shortly.");
+    }
+    lines.push("", "## Staleness");
+    for (const [id, c] of counts) lines.push(`- \`${id}\`: ${c} un-reconciled edit(s) since the last reconcile`);
+    if (outsideCounts.size > 0) {
+      const total = [...outsideCounts.values()].reduce((a, b) => a + b, 0);
+      const parts = [...outsideCounts].map(([id, c]) => `${id} (${c})`).join(", ");
+      lines.push(`- ${total} pending edit(s) on other component(s): ${parts}`);
+    }
+    if (unmapped.length > 0) lines.push(`- unmapped edits (may be the ghost of a new component): ${unmapped.join(", ")}`);
+    if (nonCodeCount > 0) lines.push(`- ${nonCodeCount} non-code edit(s) pending (not flagged)`);
+    if (counts.size === 0 && outsideCounts.size === 0 && unmapped.length === 0 && nonCodeCount === 0) {
+      lines.push("- none: no un-reconciled edits");
+    }
+    lines.push("", "## Seeds");
+    for (const sv of seedViews) {
+      const n = sv.node;
+      lines.push(`### \`${n.id}\` \u2014 ${n.label} (${n.layer})`, n.reasoning.summary, renderFiles(n.files));
+      if (sv.decisions.length > 0) {
+        lines.push("Decisions:");
+        for (const d of sv.decisions) lines.push(`- ${d.what} \u2014 ${d.why}`);
+      }
+      if (sv.omitted > 0) lines.push(`- [truncated: ${sv.omitted} older decision(s) omitted]`);
+    }
+    lines.push("", "## Outbound deps (1 hop)");
+    let anyOut = false;
+    for (const s of seeds) for (const d of s.dependsOn) {
+      const t = byId.get(d.id);
+      anyOut = true;
+      lines.push(`- \`${s.id}\` \u2192 \`${d.id}\`${d.what ? ` \u2014 ${d.what}` : ""}${d.why ? ` (${d.why})` : ""} \xB7 ${oneLiner(t)}`);
+    }
+    if (!anyOut) lines.push("- none \u2014 the seeds depend on nothing");
+    lines.push("", "## Reverse deps (blast radius)");
+    for (const e of reverseEdges) {
+      const why = !dropReverseWhys && e.link.why ? ` (${e.link.why})` : "";
+      lines.push(`- \`${e.from.id}\` \u2192 \`${e.toId}\`${e.link.what ? ` \u2014 ${e.link.what}` : ""}${why} \xB7 ${oneLiner(e.from)}`);
+    }
+    if (reverseEdges.length === 0) lines.push("- none \u2014 nothing depends on the seeds");
+    if (dropReverseWhys && reverseEdges.some((e) => e.link.why)) lines.push("[truncated: reverse-dep why-texts omitted]");
+    return lines;
+  };
+  const stages = [
+    {
+      name: "decisions",
+      // keep only the newest DECISION_TOP_N per seed
+      apply: () => {
+        let removed = false;
+        for (const sv of seedViews) {
+          if (sv.decisions.length > DECISION_TOP_N) {
+            sv.omitted = sv.decisions.length - DECISION_TOP_N;
+            sv.decisions = sv.decisions.slice(0, DECISION_TOP_N);
+            removed = true;
+          }
+        }
+        return removed;
+      }
+    },
+    {
+      name: "reverse-whys",
+      // drop reverse-dep why-texts
+      apply: () => {
+        const had = reverseEdges.some((e) => !!e.link.why);
+        if (had) dropReverseWhys = true;
+        return had;
+      }
+    }
+  ];
+  let truncated = false;
+  let out = renderCapsule();
+  for (const stage of stages) {
+    if (tokens(out) <= budget) break;
+    truncated = stage.apply() || truncated;
+    out = renderCapsule();
+  }
+  if (tokens(out) > budget) {
+    out.push(`[over budget: capsule still exceeds the ${budget}-token budget after trimming]`);
+  }
+  const served = {};
+  for (const sv of seedViews) {
+    if (sv.decisions.length > 0) served[sv.node.id] = sv.decisions.map((d) => truncate(d.what, DECISION_TITLE_MAX));
+  }
+  const briefing = {
+    ts: new Date(opts.nowMs ?? Date.now()).toISOString(),
+    task: opts.task ?? "",
+    ...opts.taskId ? { taskId: opts.taskId } : {},
+    nodes: ids,
+    decisions: served,
+    staleness: [...counts, ...outsideCounts].map(([id, c]) => `${id}:${c}`),
+    unmapped,
+    nonCode: nonCodeCount,
+    truncated
+  };
+  if (!opts.noBriefing) (opts.append ?? appendBriefing)(repoRoot, briefing);
+  return { code: 0, lines: out, briefing };
+}
+
+// src/core/feedback-log.ts
+import { appendFileSync as appendFileSync3, mkdirSync as mkdirSync4, readFileSync as readFileSync6 } from "node:fs";
+import { join as join6 } from "node:path";
+function feedbackLogPath(repoRoot) {
+  return join6(repoRoot, ".visflow", "feedback.log");
+}
+function readFeedback(repoRoot) {
+  let raw;
+  try {
+    raw = readFileSync6(feedbackLogPath(repoRoot), "utf8");
+  } catch {
+    return [];
+  }
+  const out = [];
+  for (const line of raw.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      const rec = JSON.parse(line);
+      if (rec && typeof rec.taskId === "string" && typeof rec.verdict === "string") out.push(rec);
+    } catch {
+    }
+  }
+  return out;
+}
+
+// src/core/exploration-log.ts
+import { appendFileSync as appendFileSync4, mkdirSync as mkdirSync5, readFileSync as readFileSync7 } from "node:fs";
+import { join as join7 } from "node:path";
+function explorationLogPath(repoRoot) {
+  return join7(repoRoot, ".visflow", "exploration.log");
+}
+function readExploration(repoRoot) {
+  let raw;
+  try {
+    raw = readFileSync7(explorationLogPath(repoRoot), "utf8");
+  } catch {
+    return [];
+  }
+  const out = [];
+  for (const line of raw.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      const rec = JSON.parse(line);
+      if (rec && typeof rec.taskId === "string" && typeof rec.exploreCount === "number") out.push(rec);
+    } catch {
+    }
+  }
+  return out;
+}
+
+// src/server/server.ts
+import { fileURLToPath as fileURLToPath2 } from "node:url";
+import { dirname, join as join9 } from "node:path";
+import { existsSync as existsSync3 } from "node:fs";
+
+// src/core/open-url.ts
+import { spawn } from "node:child_process";
+function openUrlCommand(platform, url) {
+  if (platform === "darwin") return { cmd: "open", args: [url] };
+  if (platform === "win32") return { cmd: "cmd", args: ["/c", "start", "", url] };
+  return { cmd: "xdg-open", args: [url] };
+}
+function openUrl(url, spawnFn = spawn) {
+  const { cmd, args } = openUrlCommand(process.platform, url);
+  try {
+    const child = spawnFn(cmd, args, { stdio: "ignore", detached: true });
+    child.on("error", () => {
+    });
+    child.unref();
+  } catch {
+  }
+}
+
+// src/server/app.ts
+var import_express = __toESM(require_express2(), 1);
+
 // src/core/open-file.ts
-import { resolve, relative, isAbsolute, sep } from "node:path";
+import { resolve, relative as relative2, isAbsolute as isAbsolute2, sep as sep2 } from "node:path";
 import { realpathSync as realpathSync2 } from "node:fs";
 import { spawn as spawn2 } from "node:child_process";
 function resolveSafePath(repoRoot, relPath) {
   const root = resolve(repoRoot);
   const abs = resolve(root, relPath);
-  const rel = relative(root, abs);
-  if (rel.startsWith("..") || isAbsolute(rel)) {
+  const rel = relative2(root, abs);
+  if (rel.startsWith("..") || isAbsolute2(rel)) {
     throw new Error(`Path "${relPath}" escapes the repository root.`);
   }
   let realRoot;
@@ -28158,7 +28545,7 @@ function resolveSafePath(repoRoot, relPath) {
   } catch {
     return abs;
   }
-  if (real !== realRoot && !real.startsWith(realRoot + sep)) {
+  if (real !== realRoot && !real.startsWith(realRoot + sep2)) {
     throw new Error(`Path "${relPath}" escapes the repository root.`);
   }
   return real;
@@ -28205,13 +28592,13 @@ var SseHub = class {
 
 // src/server/watch.ts
 import { watch } from "node:fs";
-import { join as join4 } from "node:path";
+import { join as join8 } from "node:path";
 var TRACKED = /* @__PURE__ */ new Set(["graph.json", "decisions.json", "meta.json"]);
 function shouldNotify(filename) {
   return filename !== null && TRACKED.has(filename);
 }
 var fsWatcher = (repoRoot, onChange) => {
-  const dir = join4(repoRoot, ".visflow");
+  const dir = join8(repoRoot, ".visflow");
   let timer = null;
   const fire = () => {
     timer = null;
@@ -28302,10 +28689,10 @@ function createApp(opts) {
 
 // src/server/server.ts
 function resolveWebDir(moduleDir, cwd) {
-  const sibling = join5(moduleDir, "..", "web");
-  if (existsSync2(join5(sibling, "assets"))) return sibling;
-  const built = join5(cwd, "dist", "web");
-  if (existsSync2(join5(built, "assets"))) return built;
+  const sibling = join9(moduleDir, "..", "web");
+  if (existsSync3(join9(sibling, "assets"))) return sibling;
+  const built = join9(cwd, "dist", "web");
+  if (existsSync3(join9(built, "assets"))) return built;
   return void 0;
 }
 function defaultWebDir() {
@@ -28333,26 +28720,26 @@ async function startServer(opts) {
 import { runReconcile } from "../reconcile/index.js";
 
 // src/core/ghost-nodes.ts
-import { existsSync as existsSync3 } from "node:fs";
-import { join as join6 } from "node:path";
+import { existsSync as existsSync4 } from "node:fs";
+import { join as join10 } from "node:path";
 function findGhostNodeIds(graph, repoRoot) {
-  return graph.nodes.filter((n) => n.files.length > 0 && n.files.every((f) => !existsSync3(join6(repoRoot, f)))).map((n) => n.id);
+  return graph.nodes.filter((n) => n.files.length > 0 && n.files.every((f) => !existsSync4(join10(repoRoot, f)))).map((n) => n.id);
 }
 
 // src/cli/index.ts
 import { hostname as osHostname } from "node:os";
 
 // src/license/state.ts
-import { mkdirSync as mkdirSync2, readFileSync as readFileSync4, writeFileSync as writeFileSync2, renameSync } from "node:fs";
+import { mkdirSync as mkdirSync6, readFileSync as readFileSync8, writeFileSync as writeFileSync2, renameSync as renameSync2 } from "node:fs";
 import { homedir } from "node:os";
-import { join as join7 } from "node:path";
+import { join as join11 } from "node:path";
 function licenseDir(env) {
-  return env.VISFLOW_LICENSE_DIR ?? join7(homedir(), ".config", "visflow");
+  return env.VISFLOW_LICENSE_DIR ?? join11(homedir(), ".config", "visflow");
 }
-var statePath = (env) => join7(licenseDir(env), "license.json");
+var statePath = (env) => join11(licenseDir(env), "license.json");
 function readLicenseState(env) {
   try {
-    const parsed = JSON.parse(readFileSync4(statePath(env), "utf8"));
+    const parsed = JSON.parse(readFileSync8(statePath(env), "utf8"));
     return parsed && typeof parsed === "object" ? parsed : null;
   } catch {
     return null;
@@ -28360,10 +28747,10 @@ function readLicenseState(env) {
 }
 function writeLicenseState(env, state) {
   const path = statePath(env);
-  mkdirSync2(licenseDir(env), { recursive: true });
+  mkdirSync6(licenseDir(env), { recursive: true });
   const tmp = `${path}.tmp-${process.pid}`;
   writeFileSync2(tmp, JSON.stringify(state, null, 2) + "\n", { mode: 384 });
-  renameSync(tmp, path);
+  renameSync2(tmp, path);
 }
 
 // src/license/polar-config.ts
@@ -28528,6 +28915,118 @@ async function runSyncReconcile(repoRoot, opts = {}) {
   const report = runSync(repoRoot);
   return rec.applied ? report : { code: report.code, lines: [...report.lines, `Reconcile: ${rec.reason}`] };
 }
+function runReport(repoRoot) {
+  const briefings = readBriefings(repoRoot);
+  const feedback = readFeedback(repoRoot);
+  if (briefings.length === 0 && feedback.length === 0) {
+    return { code: 0, lines: ["VisFlow report \u2014 no briefings or feedback recorded yet."] };
+  }
+  const lines = ["VisFlow report \u2014 briefing effectiveness"];
+  const byTask = /* @__PURE__ */ new Map();
+  for (const b of briefings) {
+    const key = b.taskId ?? `(no-task-id:${b.ts})`;
+    const arr = byTask.get(key) ?? [];
+    arr.push(b);
+    byTask.set(key, arr);
+  }
+  const repulled = [...byTask.values()].filter((rs) => rs.length > 1).length;
+  const meanNodes = briefings.reduce((s, b) => s + b.nodes.length, 0) / briefings.length;
+  const truncated = briefings.filter((b) => b.truncated).length;
+  lines.push("", `Capsules served: ${briefings.length} across ${byTask.size} task(s)`);
+  lines.push(`Re-pull rate: ${repulled}/${byTask.size} task(s) pulled more than once`);
+  lines.push(`Mean seed nodes per capsule: ${meanNodes.toFixed(1)}`);
+  lines.push(`Truncated capsules: ${truncated}/${briefings.length}`);
+  const explByTask = /* @__PURE__ */ new Map();
+  for (const e of readExploration(repoRoot)) {
+    if (!e.taskId) continue;
+    explByTask.set(e.taskId, (explByTask.get(e.taskId) ?? 0) + e.exploreCount);
+  }
+  if (explByTask.size > 0) {
+    lines.push("", "Exploration after briefing (Read/Grep/Glob calls \u2014 symptom only, not auto-acted):");
+    for (const [id, c] of [...explByTask].sort((a, b) => b[1] - a[1])) lines.push(`  ${id}: ${c}`);
+  }
+  const VERDICTS = ["misinformed", "uninformed", "had-to-search", "ignored", "matched"];
+  lines.push("", `Feedback records: ${feedback.length}`);
+  for (const v of VERDICTS) {
+    const n = feedback.filter((f) => f.verdict === v).length;
+    if (n > 0) lines.push(`  ${v}: ${n}`);
+  }
+  const flagged = /* @__PURE__ */ new Map();
+  for (const f of feedback) {
+    if (f.verdict === "misinformed" || f.verdict === "uninformed") {
+      for (const id of f.nodes) flagged.set(id, (flagged.get(id) ?? 0) + 1);
+    }
+  }
+  if (flagged.size > 0) {
+    lines.push("", "Nodes flagged for re-reconcile (most frequent first):");
+    for (const [id, c] of [...flagged].sort((a, b) => b[1] - a[1])) lines.push(`  ${id}: ${c}`);
+  }
+  const feedbackTasks = new Set(feedback.map((f) => f.taskId));
+  const gaps = [...byTask.keys()].filter((t) => !t.startsWith("(no-task-id") && !feedbackTasks.has(t));
+  if (gaps.length > 0) {
+    lines.push("", `Protocol gap: ${gaps.length} task(s) served a capsule but reported no feedback:`);
+    for (const t of gaps) lines.push(`  ${t}`);
+  }
+  const human = feedback.filter((f) => f.verdict === "had-to-search" || f.verdict === "ignored");
+  if (human.length > 0) {
+    lines.push("", "For human review (not auto-acted):");
+    for (const f of human) {
+      const where = f.nodes.length ? ` (${f.nodes.join(", ")})` : "";
+      lines.push(`  [${f.verdict}] task ${f.taskId}${where}: ${f.detail}`);
+    }
+  }
+  return { code: 0, lines };
+}
+var VALUE_FLAGS = /* @__PURE__ */ new Set(["--nodes", "--task", "--task-id", "--budget"]);
+var isFlag = (tok) => tok !== void 0 && (VALUE_FLAGS.has(tok) || tok === "--no-briefing");
+function parseContextArgs(rest) {
+  const seen = /* @__PURE__ */ new Set();
+  let nodes;
+  let task;
+  let taskId;
+  let budget;
+  let noBriefing = false;
+  const positionals = [];
+  for (let i = 0; i < rest.length; i++) {
+    const tok = rest[i];
+    if (tok === "--no-briefing") {
+      if (seen.has(tok)) return { ok: false };
+      seen.add(tok);
+      noBriefing = true;
+      continue;
+    }
+    if (!VALUE_FLAGS.has(tok)) {
+      positionals.push(tok);
+      continue;
+    }
+    if (seen.has(tok)) return { ok: false };
+    seen.add(tok);
+    const val = rest[i + 1];
+    if (tok === "--task" || tok === "--task-id") {
+      if (val === void 0) continue;
+      if (isFlag(val)) return { ok: false };
+      if (tok === "--task") task = val;
+      else taskId = val;
+      i++;
+      continue;
+    }
+    if (val === void 0 || val === "" || isFlag(val)) return { ok: false };
+    if (tok === "--nodes") {
+      nodes = val.split(",").map((s) => s.trim()).filter(Boolean);
+    } else {
+      const n = Number(val);
+      if (!(Number.isFinite(n) && n > 0)) return { ok: false };
+      budget = n;
+    }
+    i++;
+  }
+  if (nodes === void 0) return { ok: false };
+  return { ok: true, target: positionals[0], nodes, task, taskId, budget, noBriefing };
+}
+function printAndExit(code, lines) {
+  for (const line of lines) (code === 0 ? console.log : console.error)(line);
+  process.exit(code);
+}
 var DAY_MS2 = 864e5;
 var mask = (key) => `\u2022\u2022\u2022\u2022${key.slice(-4)}`;
 async function runLicense(rest, env, deps = {}) {
@@ -28603,44 +29102,68 @@ async function main(argv) {
   const repoRoot = process.cwd();
   if (command === "license") {
     const { code, lines } = await runLicense(rest, process.env);
-    for (const line of lines) (code === 0 ? console.log : console.error)(line);
-    process.exit(code);
+    printAndExit(code, lines);
   }
-  if (command === "validate" || command === "sync" || command === "open") {
+  if (command === "validate" || command === "sync" || command === "open" || command === "index" || command === "context" || command === "report") {
     const gate = gateLines(await checkEntitlement(process.env));
     for (const line of gate.stderr) console.error(line);
     if (!gate.proceed) process.exit(1);
   }
-  if (command === "validate") {
-    const target = rest[0] ? rest[0] : repoRoot;
-    const { code, lines } = runValidate(target);
-    for (const line of lines) (code === 0 ? console.log : console.error)(line);
-    process.exit(code);
-  } else if (command === "sync") {
-    const target = rest[0] ? rest[0] : repoRoot;
-    const { code, lines } = await runSyncReconcile(target);
-    for (const line of lines) (code === 0 ? console.log : console.error)(line);
-    process.exit(code);
-  } else if (command === "open") {
-    const { port, open } = parseOpenArgs(rest);
-    try {
-      const { url } = await startServer({ repoRoot, port, open });
-      console.log(`VisFlow map running at ${url}  (Ctrl+C to stop)`);
-    } catch (e) {
-      for (const line of openErrorLines(port, e)) console.error(line);
-      process.exit(1);
+  try {
+    if (command === "validate") {
+      const target = rest[0] ? rest[0] : repoRoot;
+      const { code, lines } = runValidate(target);
+      printAndExit(code, lines);
+    } else if (command === "sync") {
+      const target = rest[0] ? rest[0] : repoRoot;
+      const { code, lines } = await runSyncReconcile(target);
+      printAndExit(code, lines);
+    } else if (command === "open") {
+      const { port, open } = parseOpenArgs(rest);
+      try {
+        const { url } = await startServer({ repoRoot, port, open });
+        console.log(`VisFlow map running at ${url}  (Ctrl+C to stop)`);
+      } catch (e) {
+        printAndExit(1, openErrorLines(port, e));
+      }
+    } else if (command === "index") {
+      const target = rest[0] ? rest[0] : repoRoot;
+      const { code, lines } = runIndex(target);
+      printAndExit(code, lines);
+    } else if (command === "context") {
+      const parsed = parseContextArgs(rest);
+      if (!parsed.ok) {
+        printAndExit(1, ['Usage: visflow context --nodes a,b [--task "\u2026"] [--task-id ID] [--budget N] [--no-briefing] [path]']);
+      }
+      const target = parsed.target ? parsed.target : repoRoot;
+      const res = runContext(target, {
+        nodes: parsed.nodes,
+        task: parsed.task,
+        taskId: parsed.taskId,
+        budget: parsed.budget,
+        noBriefing: parsed.noBriefing
+      });
+      printAndExit(res.code, res.lines);
+    } else if (command === "report") {
+      const target = rest[0] ? rest[0] : repoRoot;
+      const { code, lines } = runReport(target);
+      printAndExit(code, lines);
+    } else {
+      printAndExit(1, ["Usage: visflow <validate|sync|open|index|context|report|license> [--port N] [--no-open] [<key>|remove]"]);
     }
-  } else {
-    console.error("Usage: visflow <validate|sync|open|license> [--port N] [--no-open] [<key>|remove]");
-    process.exit(1);
+  } catch (e) {
+    if (e instanceof DecisionsInvalidError) printAndExit(1, [e.message]);
+    throw e;
   }
 }
 if (isMain(import.meta.url)) void main(process.argv.slice(2));
 export {
   gateLines,
   openErrorLines,
+  parseContextArgs,
   parseOpenArgs,
   runLicense,
+  runReport,
   runSync,
   runSyncReconcile,
   runValidate

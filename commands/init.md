@@ -22,6 +22,7 @@ Using the Bash tool, check whether a map already exists:
 
 ## Step 2 — Model it as components
 - A **component is a logical thing** ("Auth Service", "Login Page", "Users Table"), **NOT one-node-per-file.** A component groups one or more real files.
+- **`files` MUST enumerate the component's actual source files** — list every git-tracked source file that belongs to it, as real repo-relative paths. Never use a lone `__init__.py`, a bare directory path, or a single "representative" file; exclude tests, docs, and examples. Even large components list every file: downstream consumers (context capsules, staleness joins, routing path-boost) match these paths exactly, and a render cap keeps briefings bounded, so completeness costs nothing.
 - Aim for a legible map: roughly **5–25 components** for a small app. Merge trivial files into the component they serve.
 - Assign every component exactly one **layer** from this fixed set, top to bottom:
   - `ui` — screens/pages/views the user sees
@@ -53,7 +54,7 @@ Write `.visflow/graph.json` with EXACTLY this shape:
       "label": "Human Readable Name",
       "layer": "ui | client | api | services | data | external",
       "group": "kebab-case-group-id",
-      "files": ["real/relative/path.ts"],
+      "files": ["real/relative/path.ts", "real/relative/other.ts"],
       "dependsOn": [{ "id": "other-component-id", "what": "the thing used", "why": "the reason" }],
       "reasoning": { "summary": "What it is and why it exists.", "decisions": [] }
     }
