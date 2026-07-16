@@ -19290,7 +19290,7 @@ var require_view = __commonJS({
     var dirname2 = path.dirname;
     var basename = path.basename;
     var extname = path.extname;
-    var join7 = path.join;
+    var join8 = path.join;
     var resolve2 = path.resolve;
     module.exports = View;
     function View(name, options) {
@@ -19338,12 +19338,12 @@ var require_view = __commonJS({
     };
     View.prototype.resolve = function resolve3(dir, file) {
       var ext = this.ext;
-      var path2 = join7(dir, file);
+      var path2 = join8(dir, file);
       var stat = tryStat(path2);
       if (stat && stat.isFile()) {
         return path2;
       }
-      path2 = join7(dir, basename(file, ext), "index" + ext);
+      path2 = join8(dir, basename(file, ext), "index" + ext);
       stat = tryStat(path2);
       if (stat && stat.isFile()) {
         return path2;
@@ -20400,7 +20400,7 @@ var require_send = __commonJS({
     var Stream = __require("stream");
     var util2 = __require("util");
     var extname = path.extname;
-    var join7 = path.join;
+    var join8 = path.join;
     var normalize = path.normalize;
     var resolve2 = path.resolve;
     var sep2 = path.sep;
@@ -20619,7 +20619,7 @@ var require_send = __commonJS({
           return res;
         }
         parts = path2.split(sep2);
-        path2 = normalize(join7(root, path2));
+        path2 = normalize(join8(root, path2));
       } else {
         if (UP_PATH_REGEXP.test(path2)) {
           debug('malicious path "%s"', path2);
@@ -20754,7 +20754,7 @@ var require_send = __commonJS({
           if (err) return self.onStatError(err);
           return self.error(404);
         }
-        var p = join7(path2, self._index[i]);
+        var p = join8(path2, self._index[i]);
         debug('stat "%s"', p);
         fs.stat(p, function(err2, stat) {
           if (err2) return next(err2);
@@ -26518,10 +26518,10 @@ var ZodObject = class _ZodObject extends ZodType {
       catchall: index
     });
   }
-  pick(mask) {
+  pick(mask2) {
     const shape = {};
-    for (const key of util.objectKeys(mask)) {
-      if (mask[key] && this.shape[key]) {
+    for (const key of util.objectKeys(mask2)) {
+      if (mask2[key] && this.shape[key]) {
         shape[key] = this.shape[key];
       }
     }
@@ -26530,10 +26530,10 @@ var ZodObject = class _ZodObject extends ZodType {
       shape: () => shape
     });
   }
-  omit(mask) {
+  omit(mask2) {
     const shape = {};
     for (const key of util.objectKeys(this.shape)) {
-      if (!mask[key]) {
+      if (!mask2[key]) {
         shape[key] = this.shape[key];
       }
     }
@@ -26548,11 +26548,11 @@ var ZodObject = class _ZodObject extends ZodType {
   deepPartial() {
     return deepPartialify(this);
   }
-  partial(mask) {
+  partial(mask2) {
     const newShape = {};
     for (const key of util.objectKeys(this.shape)) {
       const fieldSchema = this.shape[key];
-      if (mask && !mask[key]) {
+      if (mask2 && !mask2[key]) {
         newShape[key] = fieldSchema;
       } else {
         newShape[key] = fieldSchema.optional();
@@ -26563,10 +26563,10 @@ var ZodObject = class _ZodObject extends ZodType {
       shape: () => newShape
     });
   }
-  required(mask) {
+  required(mask2) {
     const newShape = {};
     for (const key of util.objectKeys(this.shape)) {
-      if (mask && !mask[key]) {
+      if (mask2 && !mask2[key]) {
         newShape[key] = this.shape[key];
       } else {
         const fieldSchema = this.shape[key];
@@ -28340,6 +28340,148 @@ function findGhostNodeIds(graph, repoRoot) {
 }
 
 // src/cli/index.ts
+import { hostname as osHostname } from "node:os";
+
+// src/license/state.ts
+import { mkdirSync as mkdirSync2, readFileSync as readFileSync4, writeFileSync as writeFileSync2, renameSync } from "node:fs";
+import { homedir } from "node:os";
+import { join as join7 } from "node:path";
+function licenseDir(env) {
+  return env.VISFLOW_LICENSE_DIR ?? join7(homedir(), ".config", "visflow");
+}
+var statePath = (env) => join7(licenseDir(env), "license.json");
+function readLicenseState(env) {
+  try {
+    const parsed = JSON.parse(readFileSync4(statePath(env), "utf8"));
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+function writeLicenseState(env, state) {
+  const path = statePath(env);
+  mkdirSync2(licenseDir(env), { recursive: true });
+  const tmp = `${path}.tmp-${process.pid}`;
+  writeFileSync2(tmp, JSON.stringify(state, null, 2) + "\n", { mode: 384 });
+  renameSync(tmp, path);
+}
+
+// src/license/polar-config.ts
+var POLAR_ORG_ID = "c2278667-529a-4611-a9f6-728ca68b2096";
+var POLAR_API_BASE = "https://api.polar.sh/v1";
+var PRICING_URL = "https://visflow.dev/pricing";
+
+// src/license/polar.ts
+var TIMEOUT_MS = 3e3;
+function polarClient(env = {}, fetchImpl = fetch) {
+  const base = env.VISFLOW_POLAR_API_BASE ?? POLAR_API_BASE;
+  const orgId = env.VISFLOW_POLAR_ORG_ID ?? POLAR_ORG_ID;
+  const post = async (path, body) => {
+    try {
+      const res = await fetchImpl(`${base}/customer-portal/license-keys/${path}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ organization_id: orgId, ...body }),
+        signal: AbortSignal.timeout(TIMEOUT_MS)
+      });
+      const parsed = res.status === 204 ? {} : await res.json().catch(() => ({}));
+      return { status: res.status, body: parsed };
+    } catch {
+      return { status: 0, body: null };
+    }
+  };
+  const toResult = (r) => {
+    if (r.status === 0 || r.status >= 500) return { ok: "unreachable", detail: r.status === 0 ? "network error" : `server error ${r.status}` };
+    if (r.status >= 400) return { ok: "denied", detail: r.body?.detail ?? `rejected (${r.status})` };
+    if (r.body?.status && r.body.status !== "granted") return { ok: "denied", detail: r.body.status };
+    return { ok: "granted", activationId: r.body?.id, expiresAt: r.body?.expires_at ?? r.body?.license_key?.expires_at ?? null };
+  };
+  return {
+    validate: async (key, activationId) => toResult(await post("validate", { key, ...activationId ? { activation_id: activationId } : {} })),
+    activate: async (key, label) => toResult(await post("activate", { key, label })),
+    deactivate: async (key, activationId) => {
+      const r = await post("deactivate", { key, activation_id: activationId });
+      return { ok: r.status === 204 || r.status >= 200 && r.status < 300 };
+    }
+  };
+}
+
+// src/license/entitlement.ts
+var TRIAL_DAYS = 7;
+var REVALIDATE_DAYS = 3;
+var GRACE_DAYS = 14;
+var DAY_MS = 864e5;
+var day = (iso, plusDays = 0) => new Date(new Date(iso).getTime() + plusDays * DAY_MS).toISOString().slice(0, 10);
+function decideCached(state, now) {
+  if (state?.key) {
+    if (state.status === "revoked")
+      return { allowed: false, kind: "revoked", warnings: [], refusal: `VisFlow: subscription inactive \u2014 manage it at ${PRICING_URL}` };
+    const age = now.getTime() - (state.lastValidatedAt ? new Date(state.lastValidatedAt).getTime() : 0);
+    if (age <= REVALIDATE_DAYS * DAY_MS) return { allowed: true, kind: "licensed", warnings: [] };
+    if (age <= GRACE_DAYS * DAY_MS) return { allowed: true, kind: "grace", warnings: [] };
+    return {
+      allowed: false,
+      kind: "grace-expired",
+      warnings: [],
+      refusal: `VisFlow: license revalidation has been failing since ${day(state.lastValidatedAt ?? (/* @__PURE__ */ new Date(0)).toISOString())} \u2014 check your network, or manage your subscription at ${PRICING_URL}`
+    };
+  }
+  if (!state?.trialStartedAt) return { allowed: true, kind: "none-started", warnings: [] };
+  const end = new Date(state.trialStartedAt).getTime() + TRIAL_DAYS * DAY_MS;
+  if (now.getTime() < end) {
+    const daysLeft = Math.ceil((end - now.getTime()) / DAY_MS);
+    return {
+      allowed: true,
+      kind: "trial",
+      daysLeft,
+      warnings: daysLeft <= 3 ? [`VisFlow trial: ${daysLeft} day(s) left \u2014 keep the living map: ${PRICING_URL}`] : []
+    };
+  }
+  return {
+    allowed: false,
+    kind: "trial-expired",
+    warnings: [],
+    refusal: `VisFlow trial ended \u2014 subscribe at ${PRICING_URL}, then run /visflow:license <key>. Your existing .visflow/ map is untouched.`
+  };
+}
+function checkEntitlementCached(env, now = /* @__PURE__ */ new Date()) {
+  try {
+    return decideCached(readLicenseState(env), now);
+  } catch {
+    return { allowed: true, kind: "licensed", warnings: [] };
+  }
+}
+async function checkEntitlement(env, deps = {}) {
+  const now = deps.now ?? /* @__PURE__ */ new Date();
+  try {
+    let state = readLicenseState(env);
+    if (!state?.key && !state?.trialStartedAt) {
+      state = { ...state ?? { version: 1 }, version: 1, trialStartedAt: now.toISOString() };
+      writeLicenseState(env, state);
+      const started = decideCached(state, now);
+      return { ...started, warnings: [`VisFlow trial started \u2014 ${TRIAL_DAYS} days free, then $15/mo: ${PRICING_URL}`, ...started.warnings] };
+    }
+    const cached = decideCached(state, now);
+    if (!state?.key || cached.kind === "licensed" || cached.kind === "revoked") return cached;
+    const res = await (deps.polar ?? polarClient(env)).validate(state.key, state.activationId);
+    if (res.ok === "granted") {
+      writeLicenseState(env, { ...state, status: "granted", lastValidatedAt: now.toISOString(), expiresAt: res.expiresAt });
+      return { allowed: true, kind: "licensed", warnings: [] };
+    }
+    if (res.ok === "denied") {
+      writeLicenseState(env, { ...state, status: "revoked" });
+      return decideCached({ ...state, status: "revoked" }, now);
+    }
+    if (cached.kind === "grace")
+      return { ...cached, warnings: [`VisFlow: couldn't reach the license server \u2014 licensed mode continues until ${day(state.lastValidatedAt ?? now.toISOString(), GRACE_DAYS)}.`] };
+    return cached;
+  } catch {
+    const cached = checkEntitlementCached(env, now);
+    return cached.allowed ? { ...cached, warnings: [...cached.warnings, "VisFlow: license check hit an unexpected error \u2014 continuing."] } : cached;
+  }
+}
+
+// src/cli/index.ts
 function runValidate(repoRoot) {
   const result = loadGraph(repoRoot);
   if (!result.ok) {
@@ -28386,6 +28528,65 @@ async function runSyncReconcile(repoRoot, opts = {}) {
   const report = runSync(repoRoot);
   return rec.applied ? report : { code: report.code, lines: [...report.lines, `Reconcile: ${rec.reason}`] };
 }
+var DAY_MS2 = 864e5;
+var mask = (key) => `\u2022\u2022\u2022\u2022${key.slice(-4)}`;
+async function runLicense(rest, env, deps = {}) {
+  const polar = deps.polar ?? polarClient(env);
+  const now = (deps.now ?? (() => /* @__PURE__ */ new Date()))();
+  const state = readLicenseState(env);
+  const arg = rest[0];
+  if (arg === "remove") {
+    if (!state?.key) return { code: 0, lines: ["No license key stored on this machine."] };
+    const freed = state.activationId ? (await polar.deactivate(state.key, state.activationId)).ok : false;
+    writeLicenseState(env, { version: 1, ...state.trialStartedAt ? { trialStartedAt: state.trialStartedAt } : {} });
+    return {
+      code: 0,
+      lines: [freed ? "License removed from this machine (device slot freed)." : "License removed locally. The device slot could not be freed from here \u2014 manage activations via the Polar portal if needed."]
+    };
+  }
+  if (arg) {
+    if (state?.key && state.activationId) {
+      try {
+        await polar.deactivate(state.key, state.activationId);
+      } catch {
+      }
+    }
+    const res = await polar.activate(arg, (deps.hostname ?? osHostname)());
+    if (res.ok === "granted") {
+      writeLicenseState(env, {
+        version: 1,
+        key: arg,
+        activationId: res.activationId,
+        status: "granted",
+        lastValidatedAt: now.toISOString(),
+        expiresAt: res.expiresAt,
+        ...state?.trialStartedAt ? { trialStartedAt: state.trialStartedAt } : {}
+      });
+      return { code: 0, lines: ["Licensed \u2014 thanks for subscribing!", `This machine is activated; VisFlow revalidates automatically every ${REVALIDATE_DAYS} days.`] };
+    }
+    if (res.ok === "denied") return { code: 1, lines: [`That key was not accepted: ${res.detail}.`, `Check the key, or manage your subscription: ${PRICING_URL}`] };
+    return { code: 1, lines: [`Couldn't reach the license server (${res.detail}) \u2014 check your connection and try again.`] };
+  }
+  const ent = checkEntitlementCached(env, now);
+  if (state?.key) {
+    const base = state.lastValidatedAt ?? (/* @__PURE__ */ new Date(0)).toISOString();
+    const baseMs = new Date(base).getTime();
+    const lines = [`License: ${mask(state.key)}`];
+    if (!Number.isFinite(baseMs)) lines.push(`Status: ${ent.refusal ?? "inactive"}`);
+    else if (ent.kind === "licensed") lines.push(`Status: active \u2014 next revalidation by ${new Date(baseMs + REVALIDATE_DAYS * DAY_MS2).toISOString().slice(0, 10)}.`);
+    else if (ent.kind === "grace") lines.push(`Status: active (license server not reached lately) \u2014 grace until ${new Date(baseMs + GRACE_DAYS * DAY_MS2).toISOString().slice(0, 10)}.`);
+    else lines.push(`Status: ${ent.refusal ?? "inactive"}`);
+    return { code: 0, lines };
+  }
+  if (ent.kind === "trial") return { code: 0, lines: [`Trial: ${ent.daysLeft} day(s) left.`, `Subscribe: ${PRICING_URL}`] };
+  if (ent.kind === "trial-expired") return { code: 0, lines: [ent.refusal ?? `Trial ended \u2014 subscribe: ${PRICING_URL}`] };
+  return { code: 0, lines: [`Trial not started \u2014 it begins with your first VisFlow command. ${PRICING_URL}`] };
+}
+function gateLines(ent) {
+  const stderr = [...ent.warnings];
+  if (!ent.allowed) stderr.push(ent.refusal ?? `VisFlow: not licensed \u2014 ${PRICING_URL}`);
+  return { proceed: ent.allowed, stderr };
+}
 function openErrorLines(port, e) {
   return e?.code === "EADDRINUSE" ? [`Port ${port} is already in use \u2014 is another \`visflow open\` running? Try --port <N>.`] : [`Failed to start the map server: ${e instanceof Error ? e.message : String(e)}`];
 }
@@ -28400,6 +28601,16 @@ function parseOpenArgs(rest) {
 async function main(argv) {
   const [command, ...rest] = argv;
   const repoRoot = process.cwd();
+  if (command === "license") {
+    const { code, lines } = await runLicense(rest, process.env);
+    for (const line of lines) (code === 0 ? console.log : console.error)(line);
+    process.exit(code);
+  }
+  if (command === "validate" || command === "sync" || command === "open") {
+    const gate = gateLines(await checkEntitlement(process.env));
+    for (const line of gate.stderr) console.error(line);
+    if (!gate.proceed) process.exit(1);
+  }
   if (command === "validate") {
     const target = rest[0] ? rest[0] : repoRoot;
     const { code, lines } = runValidate(target);
@@ -28420,14 +28631,16 @@ async function main(argv) {
       process.exit(1);
     }
   } else {
-    console.error("Usage: visflow <validate|sync|open> [--port N] [--no-open]");
+    console.error("Usage: visflow <validate|sync|open|license> [--port N] [--no-open] [<key>|remove]");
     process.exit(1);
   }
 }
 if (isMain(import.meta.url)) void main(process.argv.slice(2));
 export {
+  gateLines,
   openErrorLines,
   parseOpenArgs,
+  runLicense,
   runSync,
   runSyncReconcile,
   runValidate

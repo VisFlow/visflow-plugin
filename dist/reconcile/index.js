@@ -4903,14 +4903,153 @@ function claudeCliRunnerWith(spawnImpl) {
 }
 var claudeCliRunner = claudeCliRunnerWith(spawn);
 
+// src/license/state.ts
+import { mkdirSync as mkdirSync6, readFileSync as readFileSync6, writeFileSync as writeFileSync5, renameSync as renameSync4 } from "node:fs";
+import { homedir } from "node:os";
+import { join as join10 } from "node:path";
+function licenseDir(env) {
+  return env.VISFLOW_LICENSE_DIR ?? join10(homedir(), ".config", "visflow");
+}
+var statePath = (env) => join10(licenseDir(env), "license.json");
+function readLicenseState(env) {
+  try {
+    const parsed = JSON.parse(readFileSync6(statePath(env), "utf8"));
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+function writeLicenseState(env, state) {
+  const path = statePath(env);
+  mkdirSync6(licenseDir(env), { recursive: true });
+  const tmp = `${path}.tmp-${process.pid}`;
+  writeFileSync5(tmp, JSON.stringify(state, null, 2) + "\n", { mode: 384 });
+  renameSync4(tmp, path);
+}
+
+// src/license/polar-config.ts
+var POLAR_ORG_ID = "c2278667-529a-4611-a9f6-728ca68b2096";
+var POLAR_API_BASE = "https://api.polar.sh/v1";
+var PRICING_URL = "https://visflow.dev/pricing";
+
+// src/license/polar.ts
+var TIMEOUT_MS = 3e3;
+function polarClient(env = {}, fetchImpl = fetch) {
+  const base = env.VISFLOW_POLAR_API_BASE ?? POLAR_API_BASE;
+  const orgId = env.VISFLOW_POLAR_ORG_ID ?? POLAR_ORG_ID;
+  const post = async (path, body) => {
+    try {
+      const res = await fetchImpl(`${base}/customer-portal/license-keys/${path}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ organization_id: orgId, ...body }),
+        signal: AbortSignal.timeout(TIMEOUT_MS)
+      });
+      const parsed = res.status === 204 ? {} : await res.json().catch(() => ({}));
+      return { status: res.status, body: parsed };
+    } catch {
+      return { status: 0, body: null };
+    }
+  };
+  const toResult = (r) => {
+    if (r.status === 0 || r.status >= 500) return { ok: "unreachable", detail: r.status === 0 ? "network error" : `server error ${r.status}` };
+    if (r.status >= 400) return { ok: "denied", detail: r.body?.detail ?? `rejected (${r.status})` };
+    if (r.body?.status && r.body.status !== "granted") return { ok: "denied", detail: r.body.status };
+    return { ok: "granted", activationId: r.body?.id, expiresAt: r.body?.expires_at ?? r.body?.license_key?.expires_at ?? null };
+  };
+  return {
+    validate: async (key, activationId) => toResult(await post("validate", { key, ...activationId ? { activation_id: activationId } : {} })),
+    activate: async (key, label) => toResult(await post("activate", { key, label })),
+    deactivate: async (key, activationId) => {
+      const r = await post("deactivate", { key, activation_id: activationId });
+      return { ok: r.status === 204 || r.status >= 200 && r.status < 300 };
+    }
+  };
+}
+
+// src/license/entitlement.ts
+var TRIAL_DAYS = 7;
+var REVALIDATE_DAYS = 3;
+var GRACE_DAYS = 14;
+var DAY_MS = 864e5;
+var day = (iso, plusDays = 0) => new Date(new Date(iso).getTime() + plusDays * DAY_MS).toISOString().slice(0, 10);
+function decideCached(state, now) {
+  if (state?.key) {
+    if (state.status === "revoked")
+      return { allowed: false, kind: "revoked", warnings: [], refusal: `VisFlow: subscription inactive \u2014 manage it at ${PRICING_URL}` };
+    const age = now.getTime() - (state.lastValidatedAt ? new Date(state.lastValidatedAt).getTime() : 0);
+    if (age <= REVALIDATE_DAYS * DAY_MS) return { allowed: true, kind: "licensed", warnings: [] };
+    if (age <= GRACE_DAYS * DAY_MS) return { allowed: true, kind: "grace", warnings: [] };
+    return {
+      allowed: false,
+      kind: "grace-expired",
+      warnings: [],
+      refusal: `VisFlow: license revalidation has been failing since ${day(state.lastValidatedAt ?? (/* @__PURE__ */ new Date(0)).toISOString())} \u2014 check your network, or manage your subscription at ${PRICING_URL}`
+    };
+  }
+  if (!state?.trialStartedAt) return { allowed: true, kind: "none-started", warnings: [] };
+  const end = new Date(state.trialStartedAt).getTime() + TRIAL_DAYS * DAY_MS;
+  if (now.getTime() < end) {
+    const daysLeft = Math.ceil((end - now.getTime()) / DAY_MS);
+    return {
+      allowed: true,
+      kind: "trial",
+      daysLeft,
+      warnings: daysLeft <= 3 ? [`VisFlow trial: ${daysLeft} day(s) left \u2014 keep the living map: ${PRICING_URL}`] : []
+    };
+  }
+  return {
+    allowed: false,
+    kind: "trial-expired",
+    warnings: [],
+    refusal: `VisFlow trial ended \u2014 subscribe at ${PRICING_URL}, then run /visflow:license <key>. Your existing .visflow/ map is untouched.`
+  };
+}
+function checkEntitlementCached(env, now = /* @__PURE__ */ new Date()) {
+  try {
+    return decideCached(readLicenseState(env), now);
+  } catch {
+    return { allowed: true, kind: "licensed", warnings: [] };
+  }
+}
+async function checkEntitlement(env, deps = {}) {
+  const now = deps.now ?? /* @__PURE__ */ new Date();
+  try {
+    let state = readLicenseState(env);
+    if (!state?.key && !state?.trialStartedAt) {
+      state = { ...state ?? { version: 1 }, version: 1, trialStartedAt: now.toISOString() };
+      writeLicenseState(env, state);
+      const started = decideCached(state, now);
+      return { ...started, warnings: [`VisFlow trial started \u2014 ${TRIAL_DAYS} days free, then $15/mo: ${PRICING_URL}`, ...started.warnings] };
+    }
+    const cached = decideCached(state, now);
+    if (!state?.key || cached.kind === "licensed" || cached.kind === "revoked") return cached;
+    const res = await (deps.polar ?? polarClient(env)).validate(state.key, state.activationId);
+    if (res.ok === "granted") {
+      writeLicenseState(env, { ...state, status: "granted", lastValidatedAt: now.toISOString(), expiresAt: res.expiresAt });
+      return { allowed: true, kind: "licensed", warnings: [] };
+    }
+    if (res.ok === "denied") {
+      writeLicenseState(env, { ...state, status: "revoked" });
+      return decideCached({ ...state, status: "revoked" }, now);
+    }
+    if (cached.kind === "grace")
+      return { ...cached, warnings: [`VisFlow: couldn't reach the license server \u2014 licensed mode continues until ${day(state.lastValidatedAt ?? now.toISOString(), GRACE_DAYS)}.`] };
+    return cached;
+  } catch {
+    const cached = checkEntitlementCached(env, now);
+    return cached.allowed ? { ...cached, warnings: [...cached.warnings, "VisFlow: license check hit an unexpected error \u2014 continuing."] } : cached;
+  }
+}
+
 // src/reconcile/hash-state.ts
 import { createHash } from "node:crypto";
-import { readFileSync as readFileSync6 } from "node:fs";
-import { join as join10 } from "node:path";
+import { readFileSync as readFileSync7 } from "node:fs";
+import { join as join11 } from "node:path";
 var STATE_FILE = ".reconcile-hashes.json";
 function readHashState(repoRoot) {
   try {
-    const d = JSON.parse(readFileSync6(join10(repoRoot, ".visflow", STATE_FILE), "utf8"));
+    const d = JSON.parse(readFileSync7(join11(repoRoot, ".visflow", STATE_FILE), "utf8"));
     if (!d || typeof d !== "object" || Array.isArray(d)) return {};
     const out = {};
     for (const [k, v] of Object.entries(d)) if (typeof v === "string") out[k] = v;
@@ -4924,7 +5063,7 @@ function hashContent(content) {
 }
 function hashFileContent(repoRoot, rel) {
   try {
-    return hashContent(readFileSync6(join10(repoRoot, rel)));
+    return hashContent(readFileSync7(join11(repoRoot, rel)));
   } catch {
     return null;
   }
@@ -4936,12 +5075,12 @@ function updateHashState(repoRoot, files, preset = {}) {
     if (h === null) delete state[rel];
     else state[rel] = h;
   }
-  writeJsonAtomic(join10(repoRoot, ".visflow", STATE_FILE), state);
+  writeJsonAtomic(join11(repoRoot, ".visflow", STATE_FILE), state);
 }
 
 // src/reconcile/index.ts
-import { join as join11, sep as sep2 } from "node:path";
-import { existsSync as existsSync5, readFileSync as readFileSync7, realpathSync as realpathSync2 } from "node:fs";
+import { join as join12, sep as sep2 } from "node:path";
+import { existsSync as existsSync5, readFileSync as readFileSync8, realpathSync as realpathSync2 } from "node:fs";
 var INLINE_CAP_BYTES = 48 * 1024;
 var hashGuardFiles = (changedFiles) => [".visflow/graph.json", ...changedFiles];
 async function runReconcile(repoRoot, opts = {}) {
@@ -4989,7 +5128,7 @@ async function runReconcile(repoRoot, opts = {}) {
     if (mode === "scoped" && scope && !gc && scope.newFiles.length === 0 && orphanIds.length === 0 && scope.changedFiles.length > 0) {
       const hashState = readHashState(repoRoot);
       const scopeIds = /* @__PURE__ */ new Set([...scope.affectedNodeIds, ...scope.neighborNodeIds]);
-      const allPresent = prevGraph.nodes.filter((n) => scopeIds.has(n.id)).flatMap((n) => n.files).every((f) => existsSync5(join11(repoRoot, f)));
+      const allPresent = prevGraph.nodes.filter((n) => scopeIds.has(n.id)).flatMap((n) => n.files).every((f) => existsSync5(join12(repoRoot, f)));
       const unchanged = allPresent && hashGuardFiles(scope.changedFiles).every((f) => {
         const h = hashFileContent(repoRoot, f);
         return h !== null && h === hashState[f];
@@ -5020,13 +5159,13 @@ async function runReconcile(repoRoot, opts = {}) {
       for (const rel of /* @__PURE__ */ new Set([...readable, ...scopeNodeFiles])) {
         let contents;
         try {
-          const real = realpathSync2(join11(repoRoot, rel));
+          const real = realpathSync2(join12(repoRoot, rel));
           if (real !== realRoot && !real.startsWith(realRoot + sep2)) {
             inlineSkipped = "out-of-repo";
             collected.length = 0;
             break;
           }
-          contents = readFileSync7(real, "utf8");
+          contents = readFileSync8(real, "utf8");
         } catch {
           inlineSkipped = "unreadable";
           collected.length = 0;
@@ -5049,7 +5188,7 @@ async function runReconcile(repoRoot, opts = {}) {
       const neighborFiles = [...new Set(prevGraph.nodes.filter((n) => scope.neighborNodeIds.includes(n.id)).flatMap((n) => n.files))];
       const out = [.../* @__PURE__ */ new Set([...scope.changedFiles, ...neighborFiles])].filter((rel) => {
         try {
-          const real = realpathSync2(join11(repoRoot, rel));
+          const real = realpathSync2(join12(repoRoot, rel));
           return real !== realRoot && !real.startsWith(realRoot + sep2);
         } catch {
           return false;
@@ -5093,12 +5232,12 @@ async function runReconcile(repoRoot, opts = {}) {
     const outcome = await withLock(repoRoot, () => {
       const recheck = loadGraph(repoRoot);
       if (!recheck.ok || JSON.stringify(recheck.graph) !== prevFingerprint) return "stale";
-      if (!graphUnchanged) writeJsonAtomic(join11(repoRoot, ".visflow", "graph.json"), proposed);
+      if (!graphUnchanged) writeJsonAtomic(join12(repoRoot, ".visflow", "graph.json"), proposed);
       if (result.proposal.decisionMoves.length) {
         const current = readDecisions(repoRoot);
         const merged2 = applyMoves(current, result.proposal.decisionMoves, new Set(proposed.nodes.map((n) => n.id)));
         const dv = validateDecisions(merged2);
-        if (dv.ok) writeJsonAtomic(join11(repoRoot, ".visflow", "decisions.json"), merged2);
+        if (dv.ok) writeJsonAtomic(join12(repoRoot, ".visflow", "decisions.json"), merged2);
       }
       return "ok";
     });
@@ -5157,7 +5296,7 @@ async function ghostGcOnly(repoRoot, stamp, now) {
   const outcome = await withLock(repoRoot, () => {
     const recheck = loadGraph(repoRoot);
     if (!recheck.ok || JSON.stringify(recheck.graph) !== fingerprint) return "stale";
-    writeJsonAtomic(join11(repoRoot, ".visflow", "graph.json"), gc.graph);
+    writeJsonAtomic(join12(repoRoot, ".visflow", "graph.json"), gc.graph);
     return "ok";
   });
   if (outcome === "stale") return null;
@@ -5181,6 +5320,13 @@ async function main() {
     stampCrash(repoRoot, e);
     process.exit(1);
   });
+  if (existsSync5(join12(repoRoot, ".visflow", "graph.json"))) {
+    const ent = await checkEntitlement(process.env);
+    if (!ent.allowed) {
+      console.error(`visflow reconcile: ${ent.refusal ?? "not licensed"}`);
+      return;
+    }
+  }
   const res = await runReconcile(repoRoot, { force: process.argv.includes("--force") });
   if (!res.applied) console.error(`visflow reconcile: ${res.reason}`);
 }

@@ -13,15 +13,23 @@ In Claude Code:
 /plugin install visflow
 ```
 
-Requirements: Claude Code with Node.js 20+. No API key needed — the map's background
-reconcile runs through your own Claude Code session (set `ANTHROPIC_API_KEY` only if you
-prefer direct API billing).
+Requirements: Claude Code with Node.js 20+. The map's background reconcile runs through
+your own Claude Code session (set `ANTHROPIC_API_KEY` only if you prefer direct API
+billing) — VisFlow never proxies or resells inference.
+
+## Pricing
+
+VisFlow 0.9+ starts with a **7-day free trial** — no key, no signup. Keeping the living
+map after that is **$15/month or $144/year**: [visflow.dev/pricing](https://visflow.dev/pricing).
+After subscribing, activate with `/visflow:license <key>`. Versions ≤0.8.x remain free
+under the terms they shipped with.
 
 ## Use
 
 - `/visflow:init` — scan the repo and build `.visflow/graph.json` (the map)
 - `/visflow:open` — open the interactive map in your browser
 - `/visflow:sync` — force a full reconcile and print a decisions report
+- `/visflow:license` — activate a key, check trial/license status, or remove the key
 - **Decision log** — when you and Claude settle on an architectural choice, Claude records
   the what and the why (just say "record that decision" if it doesn't offer). Every decision
   is pinned to its component on the map and stays visible as the code evolves.
@@ -36,7 +44,8 @@ prefer direct API billing).
   double-click a group to see its members. A `View: Condensed | Flat` toggle restores the
   classic full map.
 - Everything stays on your machine: the map server binds 127.0.0.1 only, and all state
-  lives in `.visflow/` inside your repo.
+  lives in `.visflow/` inside your repo. The only network call VisFlow itself makes is a
+  periodic license check (with a 14-day offline grace window).
 
 ## Support
 
@@ -44,7 +53,8 @@ Bug reports and questions: [GitHub Issues](https://github.com/bxu134/visflow-plu
 
 ## License
 
-Free to install and use; not open source. See [LICENSE](LICENSE).
+7-day free trial, then subscription. Not open source. See [LICENSE](LICENSE).
+Versions ≤0.8.x remain governed by the VisFlow Community License they shipped with.
 
 This repository contains the built plugin artifact and is published from a private source
 repository — each release lands here as a single tagged commit.

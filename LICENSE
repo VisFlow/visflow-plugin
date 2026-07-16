@@ -1,19 +1,32 @@
-VisFlow Community License
+VisFlow License (applies to version 0.9.0 and later)
 
 Copyright (c) 2026 Ben Xu & Alex Xu. All rights reserved.
 
-Permission is granted, free of charge, to any person to install and use this
-software (the "Plugin"), in unmodified form, for any personal or commercial
-purpose, including within their organization.
+Evaluation. Permission is granted, free of charge, to any person to install and
+use this software (the "Plugin"), in unmodified form, for a 7-day evaluation
+period beginning at first use.
+
+Subscription. Continued use after the evaluation period requires an active
+VisFlow subscription and license key, available at https://visflow.dev/pricing.
+A license key may be activated on up to 3 devices used by the subscriber.
+
+Prior versions. Versions 0.8.x and earlier remain governed by the VisFlow
+Community License under which they were distributed.
 
 The following are NOT permitted without prior written permission from the
 copyright holders:
 
   1. redistributing the Plugin or any part of it, modified or unmodified,
      including re-publishing it under another marketplace or registry;
-  2. modifying, adapting, or creating derivative works of the Plugin;
+  2. modifying, adapting, or creating derivative works of the Plugin,
+     including circumventing or removing its license enforcement;
   3. selling, sublicensing, renting, or otherwise commercializing the Plugin
      itself.
+
+Inference. The Plugin's map reconciliation runs through the user's own Claude
+Code session or the user's own Anthropic API key. The Plugin does not proxy,
+meter, or resell Anthropic services; the user is responsible for their own
+Anthropic account and its terms.
 
 THE PLUGIN IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,

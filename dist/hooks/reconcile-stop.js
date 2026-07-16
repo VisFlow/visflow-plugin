@@ -3,8 +3,8 @@ import { createRequire as __cr } from 'node:module'; const require = __cr(import
 // src/hooks/reconcile-stop.ts
 import { spawn } from "node:child_process";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
-import { dirname as dirname2, join as join4 } from "node:path";
-import { readFileSync as readFileSync4, existsSync as existsSync3 } from "node:fs";
+import { dirname as dirname2, join as join5 } from "node:path";
+import { readFileSync as readFileSync5, existsSync as existsSync3 } from "node:fs";
 
 // src/core/is-main.ts
 import { realpathSync } from "node:fs";
@@ -196,9 +196,75 @@ function updateMeta(repoRoot, update, opts = {}) {
   }
 }
 
+// src/license/state.ts
+import { mkdirSync as mkdirSync4, readFileSync as readFileSync4, writeFileSync as writeFileSync3, renameSync as renameSync4 } from "node:fs";
+import { homedir } from "node:os";
+import { join as join4 } from "node:path";
+function licenseDir(env) {
+  return env.VISFLOW_LICENSE_DIR ?? join4(homedir(), ".config", "visflow");
+}
+var statePath = (env) => join4(licenseDir(env), "license.json");
+function readLicenseState(env) {
+  try {
+    const parsed = JSON.parse(readFileSync4(statePath(env), "utf8"));
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+// src/license/polar-config.ts
+var PRICING_URL = "https://visflow.dev/pricing";
+
+// src/license/entitlement.ts
+var TRIAL_DAYS = 7;
+var REVALIDATE_DAYS = 3;
+var GRACE_DAYS = 14;
+var DAY_MS = 864e5;
+var day = (iso, plusDays = 0) => new Date(new Date(iso).getTime() + plusDays * DAY_MS).toISOString().slice(0, 10);
+function decideCached(state, now) {
+  if (state?.key) {
+    if (state.status === "revoked")
+      return { allowed: false, kind: "revoked", warnings: [], refusal: `VisFlow: subscription inactive \u2014 manage it at ${PRICING_URL}` };
+    const age = now.getTime() - (state.lastValidatedAt ? new Date(state.lastValidatedAt).getTime() : 0);
+    if (age <= REVALIDATE_DAYS * DAY_MS) return { allowed: true, kind: "licensed", warnings: [] };
+    if (age <= GRACE_DAYS * DAY_MS) return { allowed: true, kind: "grace", warnings: [] };
+    return {
+      allowed: false,
+      kind: "grace-expired",
+      warnings: [],
+      refusal: `VisFlow: license revalidation has been failing since ${day(state.lastValidatedAt ?? (/* @__PURE__ */ new Date(0)).toISOString())} \u2014 check your network, or manage your subscription at ${PRICING_URL}`
+    };
+  }
+  if (!state?.trialStartedAt) return { allowed: true, kind: "none-started", warnings: [] };
+  const end = new Date(state.trialStartedAt).getTime() + TRIAL_DAYS * DAY_MS;
+  if (now.getTime() < end) {
+    const daysLeft = Math.ceil((end - now.getTime()) / DAY_MS);
+    return {
+      allowed: true,
+      kind: "trial",
+      daysLeft,
+      warnings: daysLeft <= 3 ? [`VisFlow trial: ${daysLeft} day(s) left \u2014 keep the living map: ${PRICING_URL}`] : []
+    };
+  }
+  return {
+    allowed: false,
+    kind: "trial-expired",
+    warnings: [],
+    refusal: `VisFlow trial ended \u2014 subscribe at ${PRICING_URL}, then run /visflow:license <key>. Your existing .visflow/ map is untouched.`
+  };
+}
+function checkEntitlementCached(env, now = /* @__PURE__ */ new Date()) {
+  try {
+    return decideCached(readLicenseState(env), now);
+  } catch {
+    return { allowed: true, kind: "licensed", warnings: [] };
+  }
+}
+
 // src/hooks/reconcile-stop.ts
 function liveRunGuard(repoRoot) {
-  const guard = join4(repoRoot, ".visflow", ".reconcile-running");
+  const guard = join5(repoRoot, ".visflow", ".reconcile-running");
   return existsSync3(guard) && !isStalePidFile(guard, GUARD_TTL_MS);
 }
 function writeSkip(repoRoot, ts, reason) {
@@ -206,6 +272,7 @@ function writeSkip(repoRoot, ts, reason) {
 }
 function handleStop(payloadRaw, env, deps) {
   if (env.VISFLOW_RECONCILING) return { spawned: false, reason: "sentinel set" };
+  if (!checkEntitlementCached({ ...process.env, ...env }).allowed) return { spawned: false, reason: "license: dormant" };
   let p;
   try {
     p = JSON.parse(payloadRaw);
@@ -236,7 +303,7 @@ function handleStop(payloadRaw, env, deps) {
   return { spawned: true, reason: "spawned" };
 }
 function spawnReconcileDetached(repoRoot) {
-  const reconcileEntry = join4(dirname2(fileURLToPath2(import.meta.url)), "..", "reconcile", "index.js");
+  const reconcileEntry = join5(dirname2(fileURLToPath2(import.meta.url)), "..", "reconcile", "index.js");
   const child = spawn(process.execPath, [reconcileEntry], {
     cwd: repoRoot,
     env: { ...process.env, VISFLOW_RECONCILING: "1" },
@@ -249,7 +316,7 @@ function main() {
   try {
     let raw = "";
     try {
-      raw = readFileSync4(0, "utf8");
+      raw = readFileSync5(0, "utf8");
     } catch {
       return;
     }
