@@ -49,7 +49,7 @@ under the terms they shipped with.
 
 ## Support
 
-Bug reports and questions: [GitHub Issues](https://github.com/bxu134/visflow-plugin/issues).
+Bug reports and questions: [GitHub Issues](https://github.com/bxu134/visflow-plugin/issues) or email support@visflow.dev
 
 ## License
 
