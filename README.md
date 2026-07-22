@@ -9,7 +9,7 @@ recorded design decisions to the components they belong to.
 In Claude Code:
 
 ```
-/plugin marketplace add bxu134/visflow-plugin
+/plugin marketplace add visflow/visflow-plugin
 /plugin install visflow
 ```
 
@@ -49,7 +49,7 @@ under the terms they shipped with.
 
 ## Support
 
-Bug reports and questions: [GitHub Issues](https://github.com/bxu134/visflow-plugin/issues) or email support@visflow.dev
+Bug reports and questions: [GitHub Issues](https://github.com/visflow/visflow-plugin/issues) or email support@visflow.dev
 
 ## License
 
