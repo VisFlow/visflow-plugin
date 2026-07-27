@@ -1,10 +1,13 @@
+
+
+
 # VisFlow
 
 A living, annotated architecture map for AI-built projects. VisFlow draws your repo as a
 layered component map, keeps that map current while Claude Code edits your code, and pins
 recorded design decisions to the components they belong to.
 
-<video src="https://raw.githubusercontent.com/VisFlow/visflow-plugin/main/assets/visflow-map-demo.mp4" controls muted></video>
+https://github.com/user-attachments/assets/0f706a90-8838-4a5f-8600-835148a557c2
 
 ## Install
 
