@@ -4,6 +4,8 @@ A living, annotated architecture map for AI-built projects. VisFlow draws your r
 layered component map, keeps that map current while Claude Code edits your code, and pins
 recorded design decisions to the components they belong to.
 
+<video src="https://raw.githubusercontent.com/VisFlow/visflow-plugin/main/assets/visflow-map-demo.mp4" controls muted></video>
+
 ## Install
 
 In Claude Code:
