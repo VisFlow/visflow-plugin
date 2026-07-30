@@ -1,20 +1,15 @@
-
-
-
 # VisFlow
 
 A living, annotated architecture map for AI-built projects. VisFlow draws your repo as a
 layered component map, keeps that map current while Claude Code edits your code, and pins
 recorded design decisions to the components they belong to.
 
-https://github.com/user-attachments/assets/0f706a90-8838-4a5f-8600-835148a557c2
-
 ## Install
 
 In Claude Code:
 
 ```
-/plugin marketplace add visflow/visflow-plugin
+/plugin marketplace add bxu134/visflow-plugin
 /plugin install visflow
 ```
 
@@ -54,7 +49,7 @@ under the terms they shipped with.
 
 ## Support
 
-Bug reports and questions: [GitHub Issues](https://github.com/visflow/visflow-plugin/issues) or email support@visflow.dev
+Bug reports and questions: [GitHub Issues](https://github.com/bxu134/visflow-plugin/issues).
 
 ## License
 
