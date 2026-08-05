@@ -43,7 +43,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 // node_modules/depd/index.js
 var require_depd = __commonJS({
   "node_modules/depd/index.js"(exports, module) {
-    var relative3 = __require("path").relative;
+    var relative4 = __require("path").relative;
     module.exports = depd;
     var basePath = process.cwd();
     function containsNamespace(str, namespace) {
@@ -235,7 +235,7 @@ var require_depd = __commonJS({
       return formatted;
     }
     function formatLocation(callSite) {
-      return relative3(basePath, callSite[0]) + ":" + callSite[1] + ":" + callSite[2];
+      return relative4(basePath, callSite[0]) + ":" + callSite[1] + ":" + callSite[2];
     }
     function getStack() {
       var limit = Error.stackTraceLimit;
@@ -4953,10 +4953,10 @@ var require_raw_body = __commonJS({
       if (done) {
         return readStream(stream, encoding, length, limit, wrap(done));
       }
-      return new Promise(function executor(resolve2, reject) {
+      return new Promise(function executor(resolve5, reject) {
         readStream(stream, encoding, length, limit, function onRead(err, buf) {
           if (err) return reject(err);
-          resolve2(buf);
+          resolve5(buf);
         });
       });
     }
@@ -19287,11 +19287,11 @@ var require_view = __commonJS({
     var debug = require_src3()("express:view");
     var path = __require("path");
     var fs = __require("fs");
-    var dirname2 = path.dirname;
-    var basename = path.basename;
+    var dirname3 = path.dirname;
+    var basename4 = path.basename;
     var extname = path.extname;
-    var join12 = path.join;
-    var resolve2 = path.resolve;
+    var join17 = path.join;
+    var resolve5 = path.resolve;
     module.exports = View;
     function View(name, options) {
       var opts = options || {};
@@ -19325,9 +19325,9 @@ var require_view = __commonJS({
       debug('lookup "%s"', name);
       for (var i = 0; i < roots.length && !path2; i++) {
         var root = roots[i];
-        var loc = resolve2(root, name);
-        var dir = dirname2(loc);
-        var file = basename(loc);
+        var loc = resolve5(root, name);
+        var dir = dirname3(loc);
+        var file = basename4(loc);
         path2 = this.resolve(dir, file);
       }
       return path2;
@@ -19336,14 +19336,14 @@ var require_view = __commonJS({
       debug('render "%s"', this.path);
       this.engine(this.path, options, callback);
     };
-    View.prototype.resolve = function resolve3(dir, file) {
+    View.prototype.resolve = function resolve6(dir, file) {
       var ext = this.ext;
-      var path2 = join12(dir, file);
+      var path2 = join17(dir, file);
       var stat = tryStat(path2);
       if (stat && stat.isFile()) {
         return path2;
       }
-      path2 = join12(dir, basename(file, ext), "index" + ext);
+      path2 = join17(dir, basename4(file, ext), "index" + ext);
       stat = tryStat(path2);
       if (stat && stat.isFile()) {
         return path2;
@@ -19424,7 +19424,7 @@ var require_content_disposition = __commonJS({
     "use strict";
     module.exports = contentDisposition;
     module.exports.parse = parse;
-    var basename = __require("path").basename;
+    var basename4 = __require("path").basename;
     var Buffer2 = require_safe_buffer().Buffer;
     var ENCODE_URL_ATTR_CHAR_REGEXP = /[\x00-\x20"'()*,/:;<=>?@[\\\]{}\x7f]/g;
     var HEX_ESCAPE_REGEXP = /%[0-9A-Fa-f]{2}/;
@@ -19460,9 +19460,9 @@ var require_content_disposition = __commonJS({
       if (typeof fallback === "string" && NON_LATIN1_REGEXP.test(fallback)) {
         throw new TypeError("fallback must be ISO-8859-1 string");
       }
-      var name = basename(filename);
+      var name = basename4(filename);
       var isQuotedString = TEXT_REGEXP.test(name);
-      var fallbackName = typeof fallback !== "string" ? fallback && getlatin1(name) : basename(fallback);
+      var fallbackName = typeof fallback !== "string" ? fallback && getlatin1(name) : basename4(fallback);
       var hasFallback = typeof fallbackName === "string" && fallbackName !== name;
       if (hasFallback || !isQuotedString || HEX_ESCAPE_REGEXP.test(name)) {
         params["filename*"] = name;
@@ -20400,10 +20400,10 @@ var require_send = __commonJS({
     var Stream = __require("stream");
     var util2 = __require("util");
     var extname = path.extname;
-    var join12 = path.join;
+    var join17 = path.join;
     var normalize2 = path.normalize;
-    var resolve2 = path.resolve;
-    var sep3 = path.sep;
+    var resolve5 = path.resolve;
+    var sep5 = path.sep;
     var BYTES_RANGE_REGEXP = /^ *bytes=/;
     var MAX_MAXAGE = 60 * 60 * 24 * 365 * 1e3;
     var UP_PATH_REGEXP = /(?:^|[\\/])\.\.(?:[\\/]|$)/;
@@ -20439,7 +20439,7 @@ var require_send = __commonJS({
       this._maxage = opts.maxAge || opts.maxage;
       this._maxage = typeof this._maxage === "string" ? ms(this._maxage) : Number(this._maxage);
       this._maxage = !isNaN(this._maxage) ? Math.min(Math.max(0, this._maxage), MAX_MAXAGE) : 0;
-      this._root = opts.root ? resolve2(opts.root) : null;
+      this._root = opts.root ? resolve5(opts.root) : null;
       if (!this._root && opts.from) {
         this.from(opts.from);
       }
@@ -20463,7 +20463,7 @@ var require_send = __commonJS({
       return this;
     }, "send.index: pass index as option");
     SendStream.prototype.root = function root(path2) {
-      this._root = resolve2(String(path2));
+      this._root = resolve5(String(path2));
       debug("root %s", this._root);
       return this;
     };
@@ -20611,23 +20611,23 @@ var require_send = __commonJS({
       var parts;
       if (root !== null) {
         if (path2) {
-          path2 = normalize2("." + sep3 + path2);
+          path2 = normalize2("." + sep5 + path2);
         }
         if (UP_PATH_REGEXP.test(path2)) {
           debug('malicious path "%s"', path2);
           this.error(403);
           return res;
         }
-        parts = path2.split(sep3);
-        path2 = normalize2(join12(root, path2));
+        parts = path2.split(sep5);
+        path2 = normalize2(join17(root, path2));
       } else {
         if (UP_PATH_REGEXP.test(path2)) {
           debug('malicious path "%s"', path2);
           this.error(403);
           return res;
         }
-        parts = normalize2(path2).split(sep3);
-        path2 = resolve2(path2);
+        parts = normalize2(path2).split(sep5);
+        path2 = resolve5(path2);
       }
       if (containsDotFile(parts)) {
         var access = this._dotfiles;
@@ -20724,7 +20724,7 @@ var require_send = __commonJS({
       var self = this;
       debug('stat "%s"', path2);
       fs.stat(path2, function onstat(err, stat) {
-        if (err && err.code === "ENOENT" && !extname(path2) && path2[path2.length - 1] !== sep3) {
+        if (err && err.code === "ENOENT" && !extname(path2) && path2[path2.length - 1] !== sep5) {
           return next(err);
         }
         if (err) return self.onStatError(err);
@@ -20754,7 +20754,7 @@ var require_send = __commonJS({
           if (err) return self.onStatError(err);
           return self.error(404);
         }
-        var p = join12(path2, self._index[i]);
+        var p = join17(path2, self._index[i]);
         debug('stat "%s"', p);
         fs.stat(p, function(err2, stat) {
           if (err2) return next(err2);
@@ -21907,7 +21907,7 @@ var require_application = __commonJS({
     var deprecate = require_depd()("express");
     var flatten = require_array_flatten();
     var merge = require_utils_merge();
-    var resolve2 = __require("path").resolve;
+    var resolve5 = __require("path").resolve;
     var setPrototypeOf = require_setprototypeof();
     var hasOwnProperty = Object.prototype.hasOwnProperty;
     var slice = Array.prototype.slice;
@@ -21946,7 +21946,7 @@ var require_application = __commonJS({
       this.mountpath = "/";
       this.locals.settings = this.settings;
       this.set("view", View);
-      this.set("views", resolve2("views"));
+      this.set("views", resolve5("views"));
       this.set("jsonp callback name", "callback");
       if (env === "production") {
         this.enable("view cache");
@@ -23191,7 +23191,7 @@ var require_response = __commonJS({
     var send = require_send();
     var extname = path.extname;
     var mime = send.mime;
-    var resolve2 = path.resolve;
+    var resolve5 = path.resolve;
     var vary = require_vary();
     var res = Object.create(http.ServerResponse.prototype);
     module.exports = res;
@@ -23450,7 +23450,7 @@ var require_response = __commonJS({
       }
       opts = Object.create(opts);
       opts.headers = headers;
-      var fullPath = !opts.root ? resolve2(path2) : path2;
+      var fullPath = !opts.root ? resolve5(path2) : path2;
       return this.sendFile(fullPath, opts, done);
     };
     res.contentType = res.type = function contentType(type) {
@@ -23716,7 +23716,7 @@ var require_serve_static = __commonJS({
     var encodeUrl = require_encodeurl();
     var escapeHtml = require_escape_html();
     var parseUrl = require_parseurl();
-    var resolve2 = __require("path").resolve;
+    var resolve5 = __require("path").resolve;
     var send = require_send();
     var url = __require("url");
     module.exports = serveStatic;
@@ -23736,7 +23736,7 @@ var require_serve_static = __commonJS({
         throw new TypeError("option setHeaders must be function");
       }
       opts.maxage = opts.maxage || opts.maxAge || 0;
-      opts.root = resolve2(root);
+      opts.root = resolve5(root);
       var onDirectory = redirect ? createRedirectDirectoryListener() : createNotFoundDirectoryListener();
       return function serveStatic2(req, res, next) {
         if (req.method !== "GET" && req.method !== "HEAD") {
@@ -27952,6 +27952,9 @@ var NEVER = INVALID;
 var MAX_TEXT = 1e4;
 var MAX_NAME = 500;
 var MAX_GROUPS = 64;
+var MAX_WORKSPACE_MEMBERS = 128;
+var MAX_CROSS_REPO_LINKS = 4096;
+var MAX_CROSS_LINK_EVIDENCE = 32;
 
 // src/schema/graph-schema.ts
 var LAYERS = ["ui", "client", "api", "services", "data", "external"];
@@ -28044,8 +28047,106 @@ function loadGraph(repoRoot) {
 }
 
 // src/core/decisions.ts
-import { readFileSync as readFileSync2 } from "node:fs";
-import { join as join2 } from "node:path";
+import { readFileSync as readFileSync3 } from "node:fs";
+import { join as join4 } from "node:path";
+
+// src/core/atomic.ts
+import { writeFileSync, renameSync, mkdirSync } from "node:fs";
+import { dirname, basename, join as join2 } from "node:path";
+function writeJsonAtomic(targetPath, data) {
+  const dir = dirname(targetPath);
+  mkdirSync(dir, { recursive: true });
+  const tmp = join2(dir, `.${basename(targetPath)}.tmp-${process.pid}-${Date.now()}`);
+  writeFileSync(tmp, JSON.stringify(data, null, 2) + "\n");
+  renameSync(tmp, targetPath);
+}
+
+// src/core/lock.ts
+import { writeFileSync as writeFileSync2, mkdirSync as mkdirSync2 } from "node:fs";
+import { join as join3 } from "node:path";
+
+// src/core/stale-pid-file.ts
+import { readFileSync as readFileSync2, statSync, renameSync as renameSync2, rmSync, utimesSync } from "node:fs";
+function readPidFileOwner(path) {
+  try {
+    const raw = readFileSync2(path, "utf8");
+    const trimmed = raw.trim();
+    if (/^\d+$/.test(trimmed)) {
+      const pid = Number(trimmed);
+      return Number.isInteger(pid) && pid > 0 ? { pid, raw } : null;
+    }
+    const parsed = JSON.parse(trimmed);
+    if (!parsed || typeof parsed !== "object") return null;
+    const owner = parsed;
+    if (!Number.isInteger(owner.pid) || owner.pid <= 0) return null;
+    if (typeof owner.token !== "string" || owner.token.length === 0) return null;
+    return { pid: owner.pid, token: owner.token, raw };
+  } catch {
+    return null;
+  }
+}
+function isPidAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return e.code !== "ESRCH";
+  }
+}
+function isStalePidFile(path, ttlMs) {
+  try {
+    if (Date.now() - statSync(path).mtimeMs > ttlMs) return true;
+    const owner = readPidFileOwner(path);
+    if (!owner) return false;
+    return !isPidAlive(owner.pid);
+  } catch {
+    return false;
+  }
+}
+function stealPidFile(path) {
+  const grave = `${path}.stale-${process.pid}`;
+  try {
+    renameSync2(path, grave);
+  } catch {
+    return false;
+  }
+  try {
+    rmSync(grave, { force: true });
+  } catch {
+  }
+  return true;
+}
+function releaseOwnedPidFile(path, expectedRaw = `${process.pid}`) {
+  try {
+    if (readFileSync2(path, "utf8") === expectedRaw) rmSync(path, { force: true });
+  } catch {
+  }
+}
+
+// src/core/lock.ts
+var sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function withStateLock(stateDir, fn, opts = {}) {
+  const retries = opts.retries ?? 100;
+  const delayMs = opts.delayMs ?? 20;
+  const staleMs = opts.staleMs ?? 6e4;
+  const lockPath = join3(stateDir, ".lock");
+  mkdirSync2(stateDir, { recursive: true });
+  for (let attempt = 0; ; attempt++) {
+    try {
+      writeFileSync2(lockPath, `${process.pid}`, { flag: "wx" });
+      break;
+    } catch {
+      if (isStalePidFile(lockPath, staleMs) && stealPidFile(lockPath)) continue;
+      if (attempt >= retries) throw new Error("visflow: could not acquire .visflow/.lock");
+      await sleep(delayMs);
+    }
+  }
+  try {
+    return await fn();
+  } finally {
+    releaseOwnedPidFile(lockPath);
+  }
+}
 
 // src/schema/decisions-schema.ts
 var DecisionSchema = external_exports.object({
@@ -28073,12 +28174,12 @@ var DECISION_TITLE_MAX = 60;
 var DecisionsInvalidError = class extends Error {
 };
 function decisionsPath(repoRoot) {
-  return join2(repoRoot, ".visflow", "decisions.json");
+  return join4(repoRoot, ".visflow", "decisions.json");
 }
 function readDecisions(repoRoot) {
   let raw;
   try {
-    raw = readFileSync2(decisionsPath(repoRoot), "utf8");
+    raw = readFileSync3(decisionsPath(repoRoot), "utf8");
   } catch {
     return { version: 1, decisions: {} };
   }
@@ -28111,14 +28212,14 @@ function sortNewestFirst(list) {
 }
 
 // src/core/meta.ts
-import { readFileSync as readFileSync3, existsSync, writeFileSync, rmSync, statSync, mkdirSync } from "node:fs";
-import { join as join3 } from "node:path";
+import { readFileSync as readFileSync4, existsSync, writeFileSync as writeFileSync3, rmSync as rmSync2, statSync as statSync2, mkdirSync as mkdirSync3 } from "node:fs";
+import { join as join5 } from "node:path";
 function metaPath(repoRoot) {
-  return join3(repoRoot, ".visflow", "meta.json");
+  return join5(repoRoot, ".visflow", "meta.json");
 }
 function readMeta(repoRoot) {
   try {
-    const d = JSON.parse(readFileSync3(metaPath(repoRoot), "utf8"));
+    const d = JSON.parse(readFileSync4(metaPath(repoRoot), "utf8"));
     return {
       version: 1,
       lastSync: d.lastSync ?? null,
@@ -28198,10 +28299,10 @@ function runIndex(repoRoot, nowMs = Date.now()) {
 }
 
 // src/core/events-log.ts
-import { appendFileSync, mkdirSync as mkdirSync2, readFileSync as readFileSync4, renameSync, rmSync as rmSync2, existsSync as existsSync2, readdirSync } from "node:fs";
-import { join as join4 } from "node:path";
+import { appendFileSync, mkdirSync as mkdirSync4, readFileSync as readFileSync5, renameSync as renameSync3, rmSync as rmSync3, existsSync as existsSync2, readdirSync } from "node:fs";
+import { join as join6 } from "node:path";
 function eventsLogPath(repoRoot) {
-  return join4(repoRoot, ".visflow", "events.log");
+  return join6(repoRoot, ".visflow", "events.log");
 }
 function parseEvents(raw) {
   const out = [];
@@ -28217,7 +28318,7 @@ function parseEvents(raw) {
 }
 function readEvents(repoRoot) {
   try {
-    return parseEvents(readFileSync4(eventsLogPath(repoRoot), "utf8"));
+    return parseEvents(readFileSync5(eventsLogPath(repoRoot), "utf8"));
   } catch {
     return [];
   }
@@ -28244,23 +28345,23 @@ function computeDependents(graph) {
 function buildGraphResponse(graph, decisions = {}, meta = null) {
   const merged = {};
   for (const n of graph.nodes) merged[n.id] = decisions[n.id] ?? [];
-  return { version: graph.version, groups: graph.groups ?? [], nodes: graph.nodes, dependents: computeDependents(graph), decisions: merged, meta };
+  return { version: graph.version, kind: "repository", groups: graph.groups ?? [], nodes: graph.nodes, dependents: computeDependents(graph), decisions: merged, meta };
 }
 
 // src/core/briefings-log.ts
-import { appendFileSync as appendFileSync2, mkdirSync as mkdirSync3, readFileSync as readFileSync5 } from "node:fs";
-import { join as join5 } from "node:path";
+import { appendFileSync as appendFileSync2, mkdirSync as mkdirSync5, readFileSync as readFileSync6 } from "node:fs";
+import { join as join7 } from "node:path";
 function appendBriefing(repoRoot, rec) {
   try {
-    mkdirSync3(join5(repoRoot, ".visflow"), { recursive: true });
-    appendFileSync2(join5(repoRoot, ".visflow", "briefings.log"), JSON.stringify(rec) + "\n");
+    mkdirSync5(join7(repoRoot, ".visflow"), { recursive: true });
+    appendFileSync2(join7(repoRoot, ".visflow", "briefings.log"), JSON.stringify(rec) + "\n");
   } catch {
   }
 }
 function readBriefings(repoRoot) {
   let raw;
   try {
-    raw = readFileSync5(join5(repoRoot, ".visflow", "briefings.log"), "utf8");
+    raw = readFileSync6(join7(repoRoot, ".visflow", "briefings.log"), "utf8");
   } catch {
     return [];
   }
@@ -28451,15 +28552,15 @@ function runContext(repoRoot, opts) {
 }
 
 // src/core/feedback-log.ts
-import { appendFileSync as appendFileSync3, mkdirSync as mkdirSync4, readFileSync as readFileSync6 } from "node:fs";
-import { join as join6 } from "node:path";
+import { appendFileSync as appendFileSync3, mkdirSync as mkdirSync6, readFileSync as readFileSync7 } from "node:fs";
+import { join as join8 } from "node:path";
 function feedbackLogPath(repoRoot) {
-  return join6(repoRoot, ".visflow", "feedback.log");
+  return join8(repoRoot, ".visflow", "feedback.log");
 }
 function readFeedback(repoRoot) {
   let raw;
   try {
-    raw = readFileSync6(feedbackLogPath(repoRoot), "utf8");
+    raw = readFileSync7(feedbackLogPath(repoRoot), "utf8");
   } catch {
     return [];
   }
@@ -28476,15 +28577,15 @@ function readFeedback(repoRoot) {
 }
 
 // src/core/exploration-log.ts
-import { appendFileSync as appendFileSync4, mkdirSync as mkdirSync5, readFileSync as readFileSync7 } from "node:fs";
-import { join as join7 } from "node:path";
+import { appendFileSync as appendFileSync4, mkdirSync as mkdirSync7, readFileSync as readFileSync8 } from "node:fs";
+import { join as join9 } from "node:path";
 function explorationLogPath(repoRoot) {
-  return join7(repoRoot, ".visflow", "exploration.log");
+  return join9(repoRoot, ".visflow", "exploration.log");
 }
 function readExploration(repoRoot) {
   let raw;
   try {
-    raw = readFileSync7(explorationLogPath(repoRoot), "utf8");
+    raw = readFileSync8(explorationLogPath(repoRoot), "utf8");
   } catch {
     return [];
   }
@@ -28502,8 +28603,8 @@ function readExploration(repoRoot) {
 
 // src/server/server.ts
 import { fileURLToPath as fileURLToPath2 } from "node:url";
-import { dirname, join as join9 } from "node:path";
-import { existsSync as existsSync3 } from "node:fs";
+import { dirname as dirname2, join as join13 } from "node:path";
+import { existsSync as existsSync4 } from "node:fs";
 
 // src/core/open-url.ts
 import { spawn } from "node:child_process";
@@ -28592,13 +28693,315 @@ var SseHub = class {
 
 // src/server/watch.ts
 import { watch } from "node:fs";
-import { join as join8 } from "node:path";
+import { join as join12 } from "node:path";
+
+// src/core/workspace-load.ts
+import { existsSync as existsSync3, realpathSync as realpathSync3 } from "node:fs";
+import { resolve as resolve2, sep as sep3 } from "node:path";
+
+// src/core/config.ts
+import { randomUUID } from "node:crypto";
+import { readFileSync as readFileSync9 } from "node:fs";
+import { join as join10 } from "node:path";
+var RepositoryConfigSchema = external_exports.object({
+  version: external_exports.literal(1),
+  repositoryId: external_exports.string().uuid().optional(),
+  commitPosture: external_exports.enum(["shared", "local"]).optional(),
+  configuredAt: external_exports.string().optional()
+}).passthrough();
+var configPath = (repoRoot) => join10(repoRoot, ".visflow", "config.json");
+function readRepositoryConfig(repoRoot) {
+  let raw;
+  try {
+    raw = readFileSync9(configPath(repoRoot), "utf8");
+  } catch {
+    return { ok: false, reason: "missing", detail: "No .visflow/config.json found." };
+  }
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch (error) {
+    return { ok: false, reason: "invalid-json", detail: error.message };
+  }
+  const parsed = RepositoryConfigSchema.safeParse(data);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      reason: "invalid-shape",
+      detail: parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ")
+    };
+  }
+  return { ok: true, config: parsed.data };
+}
+function ensureRepositoryId(repoRoot, opts = {}) {
+  const loaded = readRepositoryConfig(repoRoot);
+  if (!loaded.ok) {
+    throw new Error(`Cannot identify repository: ${loaded.detail} Run /visflow:setup in that repository first.`);
+  }
+  if (loaded.config.repositoryId) return { repositoryId: loaded.config.repositoryId, changed: false };
+  const repositoryId = (opts.createId ?? randomUUID)();
+  if (!external_exports.string().uuid().safeParse(repositoryId).success) throw new Error("Generated repositoryId is not a valid UUID.");
+  writeJsonAtomic(configPath(repoRoot), { ...loaded.config, repositoryId });
+  return { repositoryId, changed: true };
+}
+
+// src/core/workspace-store.ts
+import { readFileSync as readFileSync10 } from "node:fs";
+import { join as join11 } from "node:path";
+
+// src/schema/workspace-schema.ts
+import { posix, win32 } from "node:path";
+var UuidSchema = external_exports.string().uuid();
+var AliasSchema = external_exports.string().min(1).max(64).regex(
+  /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/,
+  "must be lowercase kebab-case"
+);
+var WorkspaceMemberSchema = external_exports.object({
+  repositoryId: UuidSchema,
+  alias: AliasSchema,
+  label: external_exports.string().min(1).max(MAX_NAME)
+});
+var QualifiedNodeRefSchema = external_exports.object({
+  repositoryId: UuidSchema,
+  nodeId: external_exports.string().min(1).max(MAX_NAME)
+});
+function isSafeWorkspaceRelativePath(value) {
+  if (value.length === 0 || value.length > 4e3) return false;
+  if (posix.isAbsolute(value) || win32.isAbsolute(value)) return false;
+  const normalized = posix.normalize(value.replaceAll("\\", "/"));
+  return normalized !== "." && normalized !== ".." && !normalized.startsWith("../");
+}
+var CrossRepoEvidenceSchema = external_exports.object({
+  repositoryId: UuidSchema,
+  path: external_exports.string().min(1).max(4e3).refine(isSafeWorkspaceRelativePath, "must be a repository-relative path"),
+  detail: external_exports.string().max(MAX_TEXT).optional()
+});
+var CrossRepoLinkSchema = external_exports.object({
+  id: UuidSchema,
+  source: QualifiedNodeRefSchema,
+  target: QualifiedNodeRefSchema,
+  what: external_exports.string().max(MAX_TEXT).optional(),
+  why: external_exports.string().max(MAX_TEXT).optional(),
+  managedBy: external_exports.enum(["user", "reconciler"]),
+  evidence: external_exports.array(CrossRepoEvidenceSchema).max(MAX_CROSS_LINK_EVIDENCE).optional()
+});
+var WorkspaceFileSchema = external_exports.object({
+  version: external_exports.literal(1),
+  id: UuidSchema,
+  label: external_exports.string().min(1).max(MAX_NAME),
+  members: external_exports.array(WorkspaceMemberSchema).max(MAX_WORKSPACE_MEMBERS),
+  links: external_exports.array(CrossRepoLinkSchema).max(MAX_CROSS_REPO_LINKS).default([])
+});
+var LocationValueSchema = external_exports.string().min(1).max(4e3).refine((value) => !posix.isAbsolute(value) && !win32.isAbsolute(value), "must be relative to the workspace root");
+var WorkspaceLocationsSchema = external_exports.object({
+  version: external_exports.literal(1),
+  locations: external_exports.record(UuidSchema, LocationValueSchema).default({})
+});
+var issueLines = (error) => error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`);
+function validateWorkspaceFile(data) {
+  const parsed = WorkspaceFileSchema.safeParse(data);
+  if (!parsed.success) return { ok: false, errors: issueLines(parsed.error) };
+  const value = parsed.data;
+  const errors = [];
+  const memberIds = /* @__PURE__ */ new Set();
+  const aliases = /* @__PURE__ */ new Set();
+  for (const member of value.members) {
+    if (memberIds.has(member.repositoryId)) errors.push(`Duplicate member repositoryId: ${member.repositoryId}`);
+    if (aliases.has(member.alias)) errors.push(`Duplicate member alias: ${member.alias}`);
+    memberIds.add(member.repositoryId);
+    aliases.add(member.alias);
+  }
+  const linkIds = /* @__PURE__ */ new Set();
+  for (const link of value.links) {
+    if (linkIds.has(link.id)) errors.push(`Duplicate cross-link id: ${link.id}`);
+    linkIds.add(link.id);
+    if (!memberIds.has(link.source.repositoryId)) errors.push(`Link "${link.id}" source references unknown repositoryId "${link.source.repositoryId}"`);
+    if (!memberIds.has(link.target.repositoryId)) errors.push(`Link "${link.id}" target references unknown repositoryId "${link.target.repositoryId}"`);
+    if (link.source.repositoryId === link.target.repositoryId) errors.push(`Link "${link.id}" must connect different repositories`);
+    for (const evidence of link.evidence ?? []) {
+      if (!memberIds.has(evidence.repositoryId)) errors.push(`Link "${link.id}" evidence references unknown repositoryId "${evidence.repositoryId}"`);
+    }
+  }
+  return errors.length ? { ok: false, errors } : { ok: true, value };
+}
+function validateWorkspaceLocations(data) {
+  const parsed = WorkspaceLocationsSchema.safeParse(data);
+  return parsed.success ? { ok: true, value: parsed.data } : { ok: false, errors: issueLines(parsed.error) };
+}
+
+// src/core/workspace-store.ts
+var workspaceDir = (root) => join11(root, ".visflow-workspace");
+var workspaceFilePath = (root) => join11(workspaceDir(root), "workspace.json");
+var locationsFilePath = (root) => join11(workspaceDir(root), "locations.json");
+function readWorkspaceFile(root) {
+  let raw;
+  try {
+    raw = readFileSync10(workspaceFilePath(root), "utf8");
+  } catch {
+    return { ok: false, reason: "missing", errors: ["No .visflow-workspace/workspace.json found."] };
+  }
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch (error) {
+    return { ok: false, reason: "invalid-json", errors: [error.message] };
+  }
+  const result = validateWorkspaceFile(data);
+  return result.ok ? { ok: true, value: result.value, raw } : { ok: false, reason: "invalid-schema", errors: result.errors };
+}
+function readWorkspaceLocations(root) {
+  let raw;
+  try {
+    raw = readFileSync10(locationsFilePath(root), "utf8");
+  } catch {
+    return { ok: true, value: { version: 1, locations: {} }, raw: null };
+  }
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch (error) {
+    return { ok: false, reason: "invalid-json", errors: [error.message] };
+  }
+  const result = validateWorkspaceLocations(data);
+  return result.ok ? { ok: true, value: result.value, raw } : { ok: false, reason: "invalid-schema", errors: result.errors };
+}
+function writeWorkspaceFile(root, value) {
+  const checked = validateWorkspaceFile(value);
+  if (!checked.ok) throw new Error(`Invalid workspace: ${checked.errors.join("; ")}`);
+  writeJsonAtomic(workspaceFilePath(root), checked.value);
+}
+function writeWorkspaceLocations(root, value) {
+  const checked = validateWorkspaceLocations(value);
+  if (!checked.ok) throw new Error(`Invalid workspace locations: ${checked.errors.join("; ")}`);
+  writeJsonAtomic(locationsFilePath(root), checked.value);
+}
+
+// src/core/workspace-load.ts
+var inside = (parent, child) => child === parent || child.startsWith(parent + sep3);
+function memberDiagnostic(member, status, detail) {
+  switch (status) {
+    case "ready":
+      return void 0;
+    case "unlocated":
+      return `Repository "${member.alias}" is not located. Run visflow workspace locate ${member.alias} <path>.`;
+    case "missing":
+      return `Repository "${member.alias}" is missing. Run visflow workspace locate ${member.alias} <path>.`;
+    case "identity-mismatch":
+      return `Repository "${member.alias}" has a missing or mismatched repository identity.${detail ? ` ${detail}` : ""}`;
+    case "unmapped":
+      return `Repository "${member.alias}" has no VisFlow map. Run /visflow:init inside that repository.`;
+    case "invalid-graph":
+      return `Repository "${member.alias}" has an invalid graph.${detail ? ` ${detail}` : ""}`;
+    case "invalid-decisions":
+      return `Repository "${member.alias}" has invalid decisions.${detail ? ` ${detail}` : ""}`;
+  }
+}
+function loadWorkspace(root) {
+  const stored = readWorkspaceFile(root);
+  if (!stored.ok) {
+    return {
+      ok: false,
+      error: { kind: stored.reason === "missing" ? "not-found" : "invalid", messages: stored.errors }
+    };
+  }
+  const locations = readWorkspaceLocations(root);
+  if (!locations.ok) return { ok: false, error: { kind: "invalid", messages: locations.errors } };
+  const roots = /* @__PURE__ */ new Map();
+  for (const member of stored.value.members) {
+    const location = locations.value.locations[member.repositoryId];
+    if (!location) continue;
+    const candidate = resolve2(root, location);
+    if (!existsSync3(candidate)) continue;
+    try {
+      roots.set(member.repositoryId, realpathSync3(candidate));
+    } catch {
+    }
+  }
+  const rooted = stored.value.members.map((member) => ({ member, real: roots.get(member.repositoryId) })).filter((entry) => !!entry.real);
+  for (let i = 0; i < rooted.length; i++) {
+    for (let j = i + 1; j < rooted.length; j++) {
+      if (inside(rooted[i].real, rooted[j].real) || inside(rooted[j].real, rooted[i].real)) {
+        return {
+          ok: false,
+          error: {
+            kind: "security",
+            messages: [`Workspace member roots overlap: "${rooted[i].member.alias}" and "${rooted[j].member.alias}".`]
+          }
+        };
+      }
+    }
+  }
+  const members = stored.value.members.map((member) => {
+    const location = locations.value.locations[member.repositoryId];
+    if (!location) return { member, status: "unlocated", diagnostic: memberDiagnostic(member, "unlocated") };
+    const repoRoot = roots.get(member.repositoryId);
+    if (!repoRoot) return { member, status: "missing", diagnostic: memberDiagnostic(member, "missing") };
+    const config = readRepositoryConfig(repoRoot);
+    if (!config.ok || config.config.repositoryId !== member.repositoryId) {
+      return {
+        member,
+        status: "identity-mismatch",
+        diagnostic: memberDiagnostic(member, "identity-mismatch")
+      };
+    }
+    const loaded = loadGraph(repoRoot);
+    if (!loaded.ok) {
+      const status = loaded.error.kind === "not-found" ? "unmapped" : "invalid-graph";
+      return {
+        member,
+        status,
+        diagnostic: memberDiagnostic(member, status, loaded.error.messages[0])
+      };
+    }
+    let decisions;
+    try {
+      decisions = readDecisions(repoRoot);
+    } catch (error) {
+      const detail = error instanceof DecisionsInvalidError ? error.message.split("\n")[0] : "Could not read decisions.";
+      return {
+        member,
+        status: "invalid-decisions",
+        diagnostic: memberDiagnostic(member, "invalid-decisions", detail)
+      };
+    }
+    return {
+      member,
+      status: "ready",
+      repoRoot,
+      graph: loaded.graph,
+      graphRaw: loaded.raw,
+      decisions,
+      meta: readMetaOrNull(repoRoot)
+    };
+  });
+  const byId = new Map(members.map((member) => [member.member.repositoryId, member]));
+  const links = stored.value.links.map((link) => {
+    const source = byId.get(link.source.repositoryId);
+    const target = byId.get(link.target.repositoryId);
+    let status;
+    if (source?.status !== "ready") status = "source-unavailable";
+    else if (target?.status !== "ready") status = "target-unavailable";
+    else if (!source.graph?.nodes.some((node) => node.id === link.source.nodeId)) status = "source-node-missing";
+    else if (!target.graph?.nodes.some((node) => node.id === link.target.nodeId)) status = "target-node-missing";
+    else status = "resolved";
+    return { link, status };
+  });
+  return {
+    ok: true,
+    workspace: { root, file: stored.value, fileRaw: stored.raw, members, links }
+  };
+}
+
+// src/server/watch.ts
 var TRACKED = /* @__PURE__ */ new Set(["graph.json", "decisions.json", "meta.json"]);
 function shouldNotify(filename) {
   return filename !== null && TRACKED.has(filename);
 }
+function shouldNotifyWorkspace(filename) {
+  return filename !== null && (filename === "workspace.json" || filename === "locations.json");
+}
 var fsWatcher = (repoRoot, onChange) => {
-  const dir = join8(repoRoot, ".visflow");
+  const dir = join12(repoRoot, ".visflow");
   let timer = null;
   const fire = () => {
     timer = null;
@@ -28618,12 +29021,83 @@ var fsWatcher = (repoRoot, onChange) => {
     watcher?.close();
   };
 };
+var workspaceFsWatcher = (workspaceRoot, onChange) => {
+  let timer = null;
+  const fire = () => {
+    timer = null;
+    onChange();
+  };
+  const schedule = () => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(fire, 150);
+  };
+  const watchers = [];
+  try {
+    watchers.push(watch(join12(workspaceRoot, ".visflow-workspace"), (_event, filename) => {
+      if (shouldNotifyWorkspace(filename)) schedule();
+    }));
+  } catch {
+  }
+  const loaded = loadWorkspace(workspaceRoot);
+  if (loaded.ok) {
+    for (const member of loaded.workspace.members) {
+      if (member.status !== "ready" || !member.repoRoot) continue;
+      try {
+        watchers.push(watch(join12(member.repoRoot, ".visflow"), (_event, filename) => {
+          if (shouldNotify(filename)) schedule();
+        }));
+      } catch {
+      }
+    }
+  }
+  return () => {
+    if (timer) clearTimeout(timer);
+    for (const watcher of watchers) watcher.close();
+  };
+};
+
+// src/core/workspace-refs.ts
+function parseQualifiedNodeRef(value, members) {
+  const slash = value.indexOf("/");
+  if (slash <= 0 || slash === value.length - 1) {
+    return { ok: false, error: `Expected <repository-alias>/<node-id>, got "${value}".` };
+  }
+  const alias = value.slice(0, slash);
+  const nodeId = value.slice(slash + 1);
+  const member = members.find((candidate) => candidate.alias === alias);
+  if (!member) return { ok: false, error: `Unknown repository alias "${alias}".` };
+  return { ok: true, ref: { repositoryId: member.repositoryId, nodeId } };
+}
+function formatQualifiedNodeRef(ref, members) {
+  const alias = members.find((member) => member.repositoryId === ref.repositoryId)?.alias ?? ref.repositoryId;
+  return `${alias}/${ref.nodeId}`;
+}
+
+// src/core/workspace-compose.ts
+function buildWorkspaceResponse(loaded) {
+  return {
+    version: 1,
+    kind: "workspace",
+    workspace: { id: loaded.file.id, label: loaded.file.label },
+    members: loaded.members.map((entry) => ({
+      repositoryId: entry.member.repositoryId,
+      alias: entry.member.alias,
+      label: entry.member.label,
+      status: entry.status,
+      ...entry.diagnostic ? { diagnostic: entry.diagnostic } : {},
+      ...entry.status === "ready" && entry.graph && entry.decisions ? { graph: buildGraphResponse(entry.graph, entry.decisions.decisions, entry.meta ?? null) } : {}
+    })),
+    links: loaded.links.map(({ link, status }) => ({ ...link, status }))
+  };
+}
 
 // src/server/app.ts
 function createApp(opts) {
-  const { repoRoot, webDir } = opts;
+  const { repoRoot, workspaceRoot, webDir } = opts;
+  if (!!repoRoot === !!workspaceRoot) throw new Error("createApp requires exactly one repository or workspace root.");
   const openImpl = opts.openImpl ?? openInEditor;
   const watcher = opts.watcher ?? fsWatcher;
+  const watchWorkspace = opts.workspaceWatcher ?? workspaceFsWatcher;
   const hub = new SseHub();
   let stopWatch = null;
   const app = (0, import_express.default)();
@@ -28637,6 +29111,15 @@ function createApp(opts) {
     next();
   });
   app.get("/api/graph", (_req, res) => {
+    if (workspaceRoot) {
+      const loaded = loadWorkspace(workspaceRoot);
+      if (loaded.ok) {
+        res.status(200).json(buildWorkspaceResponse(loaded.workspace));
+        return;
+      }
+      res.status(loaded.error.kind === "not-found" ? 404 : 422).json({ error: loaded.error });
+      return;
+    }
     const result = loadGraph(repoRoot);
     if (result.ok) {
       const decisions = readDecisions(repoRoot);
@@ -28652,14 +29135,29 @@ function createApp(opts) {
       res.status(400).json({ ok: false, error: 'Missing "path" in request body.' });
       return;
     }
+    let selectedRoot = repoRoot;
+    if (workspaceRoot) {
+      const repositoryId = req.body?.repositoryId;
+      if (typeof repositoryId !== "string" || repositoryId.length === 0) {
+        res.status(400).json({ ok: false, error: 'Missing "repositoryId" in workspace file-open request.' });
+        return;
+      }
+      const loaded = loadWorkspace(workspaceRoot);
+      const member = loaded.ok ? loaded.workspace.members.find((entry) => entry.member.repositoryId === repositoryId) : void 0;
+      if (!member || member.status !== "ready" || !member.repoRoot) {
+        res.status(400).json({ ok: false, error: "Repository is unavailable or its identity does not match." });
+        return;
+      }
+      selectedRoot = member.repoRoot;
+    }
     try {
-      resolveSafePath(repoRoot, path);
+      resolveSafePath(selectedRoot, path);
     } catch (e) {
       res.status(400).json({ ok: false, error: e.message });
       return;
     }
     try {
-      await openImpl(repoRoot, path);
+      await openImpl(selectedRoot, path);
       res.status(200).json({ ok: true });
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message });
@@ -28674,7 +29172,7 @@ function createApp(opts) {
     res.write("event: ping\ndata: {}\n\n");
     const client = { write: (c) => res.write(c) };
     hub.add(client);
-    if (!stopWatch) stopWatch = watcher(repoRoot, () => hub.broadcastChange());
+    if (!stopWatch) stopWatch = workspaceRoot ? watchWorkspace(workspaceRoot, () => hub.broadcastChange()) : watcher(repoRoot, () => hub.broadcastChange());
     req.on("close", () => {
       hub.remove(client);
       if (hub.size === 0 && stopWatch) {
@@ -28689,17 +29187,17 @@ function createApp(opts) {
 
 // src/server/server.ts
 function resolveWebDir(moduleDir, cwd) {
-  const sibling = join9(moduleDir, "..", "web");
-  if (existsSync3(join9(sibling, "assets"))) return sibling;
-  const built = join9(cwd, "dist", "web");
-  if (existsSync3(join9(built, "assets"))) return built;
+  const sibling = join13(moduleDir, "..", "web");
+  if (existsSync4(join13(sibling, "assets"))) return sibling;
+  const built = join13(cwd, "dist", "web");
+  if (existsSync4(join13(built, "assets"))) return built;
   return void 0;
 }
 function defaultWebDir() {
-  return resolveWebDir(dirname(fileURLToPath2(import.meta.url)), process.cwd());
+  return resolveWebDir(dirname2(fileURLToPath2(import.meta.url)), process.cwd());
 }
 async function startServer(opts) {
-  const app = createApp({ repoRoot: opts.repoRoot, webDir: defaultWebDir() });
+  const app = createApp({ repoRoot: opts.repoRoot, workspaceRoot: opts.workspaceRoot, webDir: defaultWebDir() });
   const port = opts.port ?? 0;
   return new Promise((resolveP, rejectP) => {
     const server = app.listen(port, "127.0.0.1", () => {
@@ -28719,27 +29217,49 @@ async function startServer(opts) {
 // src/cli/index.ts
 import { runReconcile } from "../reconcile/index.js";
 
+// src/core/reconcile-cancel.ts
+import { existsSync as existsSync5, readFileSync as readFileSync11, rmSync as rmSync4 } from "node:fs";
+import { join as join14 } from "node:path";
+var runningPath = (repoRoot) => join14(repoRoot, ".visflow", ".reconcile-running");
+var requestPath = (repoRoot) => join14(repoRoot, ".visflow", ".reconcile-cancel.json");
+function requestReconcileCancellation(repoRoot) {
+  const owner = readPidFileOwner(runningPath(repoRoot));
+  if (!owner) {
+    return existsSync5(runningPath(repoRoot)) ? { requested: false, reason: "unverified-owner" } : { requested: false, reason: "not-running" };
+  }
+  if (!owner.token) return { requested: false, reason: "unverified-owner" };
+  writeJsonAtomic(requestPath(repoRoot), {
+    version: 1,
+    token: owner.token,
+    requestedAt: (/* @__PURE__ */ new Date()).toISOString()
+  });
+  return { requested: true, token: owner.token, pid: owner.pid };
+}
+function isReconcileOwnerActive(repoRoot, token) {
+  return readPidFileOwner(runningPath(repoRoot))?.token === token;
+}
+
 // src/core/ghost-nodes.ts
-import { existsSync as existsSync4 } from "node:fs";
-import { join as join10 } from "node:path";
+import { existsSync as existsSync6 } from "node:fs";
+import { join as join15 } from "node:path";
 function findGhostNodeIds(graph, repoRoot) {
-  return graph.nodes.filter((n) => n.files.length > 0 && n.files.every((f) => !existsSync4(join10(repoRoot, f)))).map((n) => n.id);
+  return graph.nodes.filter((n) => n.files.length > 0 && n.files.every((f) => !existsSync6(join15(repoRoot, f)))).map((n) => n.id);
 }
 
 // src/cli/index.ts
 import { hostname as osHostname } from "node:os";
 
 // src/license/state.ts
-import { mkdirSync as mkdirSync6, readFileSync as readFileSync8, writeFileSync as writeFileSync2, renameSync as renameSync2 } from "node:fs";
+import { mkdirSync as mkdirSync8, readFileSync as readFileSync12, writeFileSync as writeFileSync4, renameSync as renameSync4 } from "node:fs";
 import { homedir } from "node:os";
-import { join as join11 } from "node:path";
+import { join as join16 } from "node:path";
 function licenseDir(env) {
-  return env.VISFLOW_LICENSE_DIR ?? join11(homedir(), ".config", "visflow");
+  return env.VISFLOW_LICENSE_DIR ?? join16(homedir(), ".config", "visflow");
 }
-var statePath = (env) => join11(licenseDir(env), "license.json");
+var statePath = (env) => join16(licenseDir(env), "license.json");
 function readLicenseState(env) {
   try {
-    const parsed = JSON.parse(readFileSync8(statePath(env), "utf8"));
+    const parsed = JSON.parse(readFileSync12(statePath(env), "utf8"));
     return parsed && typeof parsed === "object" ? parsed : null;
   } catch {
     return null;
@@ -28747,10 +29267,10 @@ function readLicenseState(env) {
 }
 function writeLicenseState(env, state) {
   const path = statePath(env);
-  mkdirSync6(licenseDir(env), { recursive: true });
+  mkdirSync8(licenseDir(env), { recursive: true });
   const tmp = `${path}.tmp-${process.pid}`;
-  writeFileSync2(tmp, JSON.stringify(state, null, 2) + "\n", { mode: 384 });
-  renameSync2(tmp, path);
+  writeFileSync4(tmp, JSON.stringify(state, null, 2) + "\n", { mode: 384 });
+  renameSync4(tmp, path);
 }
 
 // src/license/polar-config.ts
@@ -28868,6 +29388,307 @@ async function checkEntitlement(env, deps = {}) {
   }
 }
 
+// src/cli/workspace.ts
+import { basename as basename3, resolve as resolve4 } from "node:path";
+
+// src/core/workspace-mutations.ts
+import { randomUUID as randomUUID2 } from "node:crypto";
+import { existsSync as existsSync7, mkdirSync as mkdirSync9, realpathSync as realpathSync4, writeFileSync as writeFileSync5 } from "node:fs";
+import { basename as basename2, relative as relative3, resolve as resolve3, sep as sep4 } from "node:path";
+var portableRelative = (from, to) => {
+  const value = relative3(from, to).split(sep4).join("/");
+  return value || ".";
+};
+var slug = (value) => {
+  const out = value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return out || "repository";
+};
+var nextAlias = (base, members) => {
+  const taken = new Set(members.map((member) => member.alias));
+  if (!taken.has(base)) return base;
+  for (let n = 2; ; n++) if (!taken.has(`${base}-${n}`)) return `${base}-${n}`;
+};
+function ensureIgnoreFile(root) {
+  const dir = workspaceDir(root);
+  mkdirSync9(dir, { recursive: true });
+  writeFileSync5(
+    resolve3(dir, ".gitignore"),
+    "*\n!.gitignore\n!workspace.json\n",
+    { flag: "w" }
+  );
+}
+function prepareRepository(repoPath, createId) {
+  let repoRoot;
+  try {
+    repoRoot = realpathSync4(resolve3(repoPath));
+  } catch {
+    throw new Error(`Repository path does not exist: ${repoPath}`);
+  }
+  const config = readRepositoryConfig(repoRoot);
+  if (!config.ok) throw new Error(`Cannot add ${repoPath}: ${config.detail} Run /visflow:setup there first.`);
+  const graph = loadGraph(repoRoot);
+  if (!graph.ok) throw new Error(`Cannot add ${repoPath}: graph is unavailable (${graph.error.kind}). Run /visflow:init there first.`);
+  return {
+    repoRoot,
+    repositoryId: config.config.repositoryId ?? createId(),
+    needsId: !config.config.repositoryId,
+    defaultAlias: slug(basename2(repoRoot)),
+    defaultLabel: basename2(repoRoot)
+  };
+}
+async function createWorkspace(root, label, opts = {}) {
+  return withStateLock(workspaceDir(root), () => {
+    if (existsSync7(resolve3(workspaceDir(root), "workspace.json"))) throw new Error("A VisFlow workspace already exists here.");
+    const value = {
+      version: 1,
+      id: (opts.createId ?? randomUUID2)(),
+      label,
+      members: [],
+      links: []
+    };
+    ensureIgnoreFile(root);
+    writeWorkspaceLocations(root, { version: 1, locations: {} });
+    writeWorkspaceFile(root, value);
+    return value;
+  });
+}
+async function addPrepared(root, prepared, opts) {
+  return withStateLock(workspaceDir(root), () => {
+    const current = readWorkspaceFile(root);
+    if (!current.ok) throw new Error(current.errors.join("; "));
+    const locations = readWorkspaceLocations(root);
+    if (!locations.ok) throw new Error(locations.errors.join("; "));
+    const existing = current.value.members.find((member2) => member2.repositoryId === prepared.repositoryId);
+    if (existing) {
+      const configured = locations.value.locations[prepared.repositoryId];
+      if (configured && realpathSync4(resolve3(root, configured)) === prepared.repoRoot) return existing;
+      throw new Error(`Repository identity ${prepared.repositoryId} is already registered at another location.`);
+    }
+    const aliasBase = opts.alias ?? prepared.defaultAlias;
+    if (opts.alias && current.value.members.some((member2) => member2.alias === opts.alias)) {
+      throw new Error(`Repository alias "${opts.alias}" is already in use.`);
+    }
+    const member = {
+      repositoryId: prepared.repositoryId,
+      alias: opts.alias ?? nextAlias(aliasBase, current.value.members),
+      label: opts.label ?? prepared.defaultLabel
+    };
+    if (prepared.needsId) ensureRepositoryId(prepared.repoRoot, { createId: () => prepared.repositoryId });
+    writeWorkspaceLocations(root, {
+      version: 1,
+      locations: { ...locations.value.locations, [prepared.repositoryId]: portableRelative(root, prepared.repoRoot) }
+    });
+    writeWorkspaceFile(root, { ...current.value, members: [...current.value.members, member] });
+    return member;
+  });
+}
+async function addExistingRepository(root, repoPath, opts = {}) {
+  const createId = opts.createId ?? randomUUID2;
+  return addPrepared(root, prepareRepository(repoPath, createId), opts);
+}
+async function connectExistingRepositories(root, repoPaths, opts = {}) {
+  if (repoPaths.length < 2) throw new Error("Connect requires at least two existing mapped repositories.");
+  const createId = opts.createId ?? randomUUID2;
+  const prepared = repoPaths.map((repoPath) => prepareRepository(repoPath, createId));
+  const roots = new Set(prepared.map((entry) => entry.repoRoot));
+  const ids = new Set(prepared.map((entry) => entry.repositoryId));
+  if (roots.size !== prepared.length || ids.size !== prepared.length) throw new Error("Connect inputs contain a duplicate repository or repository identity.");
+  const existing = readWorkspaceFile(root);
+  if (!existing.ok) {
+    if (existing.reason !== "missing") throw new Error(existing.errors.join("; "));
+    await createWorkspace(root, opts.label ?? basename2(resolve3(root)), { createId: () => opts.workspaceId ?? createId() });
+  }
+  for (const entry of prepared) await addPrepared(root, entry, {});
+  const final = readWorkspaceFile(root);
+  if (!final.ok) throw new Error(final.errors.join("; "));
+  return final.value;
+}
+async function locateRepository(root, alias, repoPath) {
+  return withStateLock(workspaceDir(root), () => {
+    const current = readWorkspaceFile(root);
+    if (!current.ok) throw new Error(current.errors.join("; "));
+    const member = current.value.members.find((candidate) => candidate.alias === alias);
+    if (!member) throw new Error(`Unknown repository alias "${alias}".`);
+    let repoRoot;
+    try {
+      repoRoot = realpathSync4(resolve3(repoPath));
+    } catch {
+      throw new Error(`Repository path does not exist: ${repoPath}`);
+    }
+    const config = readRepositoryConfig(repoRoot);
+    if (!config.ok || config.config.repositoryId !== member.repositoryId) throw new Error(`Repository identity does not match "${alias}".`);
+    const graph = loadGraph(repoRoot);
+    if (!graph.ok) throw new Error(`Repository "${alias}" does not have a valid map.`);
+    const locations = readWorkspaceLocations(root);
+    if (!locations.ok) throw new Error(locations.errors.join("; "));
+    writeWorkspaceLocations(root, {
+      version: 1,
+      locations: { ...locations.value.locations, [member.repositoryId]: portableRelative(root, repoRoot) }
+    });
+  });
+}
+async function addManualLink(root, input) {
+  return withStateLock(workspaceDir(root), () => {
+    const loaded = loadWorkspace(root);
+    if (!loaded.ok) throw new Error(loaded.error.messages.join("; "));
+    const from = parseQualifiedNodeRef(input.from, loaded.workspace.file.members);
+    const to = parseQualifiedNodeRef(input.to, loaded.workspace.file.members);
+    if (!from.ok) throw new Error(from.error);
+    if (!to.ok) throw new Error(to.error);
+    if (from.ref.repositoryId === to.ref.repositoryId) throw new Error("A cross-repository link must connect different repositories.");
+    const byId = new Map(loaded.workspace.members.map((member) => [member.member.repositoryId, member]));
+    const source = byId.get(from.ref.repositoryId);
+    const target = byId.get(to.ref.repositoryId);
+    if (source?.status !== "ready" || !source.graph?.nodes.some((node) => node.id === from.ref.nodeId)) throw new Error(`Source endpoint "${input.from}" does not resolve.`);
+    if (target?.status !== "ready" || !target.graph?.nodes.some((node) => node.id === to.ref.nodeId)) throw new Error(`Target endpoint "${input.to}" does not resolve.`);
+    const link = {
+      id: (input.createId ?? randomUUID2)(),
+      source: from.ref,
+      target: to.ref,
+      ...input.what ? { what: input.what } : {},
+      ...input.why ? { why: input.why } : {},
+      managedBy: "user"
+    };
+    writeWorkspaceFile(root, { ...loaded.workspace.file, links: [...loaded.workspace.file.links, link] });
+    return link;
+  });
+}
+async function removeManualLink(root, linkId) {
+  return withStateLock(workspaceDir(root), () => {
+    const current = readWorkspaceFile(root);
+    if (!current.ok) throw new Error(current.errors.join("; "));
+    const link = current.value.links.find((candidate) => candidate.id === linkId);
+    if (!link) throw new Error(`Unknown cross-link id "${linkId}".`);
+    writeWorkspaceFile(root, { ...current.value, links: current.value.links.filter((candidate) => candidate.id !== linkId) });
+    return link;
+  });
+}
+
+// src/cli/workspace.ts
+var valueFlags = /* @__PURE__ */ new Set(["--label", "--alias", "--from", "--to", "--what", "--why", "--port"]);
+function splitArgs(args) {
+  const flags = /* @__PURE__ */ new Map();
+  const positionals = [];
+  for (let i = 0; i < args.length; i++) {
+    const token = args[i];
+    if (token === "--no-open") {
+      if (flags.has(token)) return { ok: false };
+      flags.set(token, true);
+      continue;
+    }
+    if (token.startsWith("--")) {
+      if (!valueFlags.has(token) || flags.has(token)) return { ok: false };
+      const value = args[++i];
+      if (!value || value.startsWith("--")) return { ok: false };
+      flags.set(token, value);
+      continue;
+    }
+    positionals.push(token);
+  }
+  return { ok: true, positionals, flags };
+}
+var stringFlag = (flags, name) => {
+  const value = flags.get(name);
+  return typeof value === "string" ? value : void 0;
+};
+function parseWorkspaceArgs(args) {
+  const [command, ...rest] = args;
+  const split = splitArgs(rest);
+  if (!split.ok) return null;
+  const { positionals: p, flags } = split;
+  const only = (...allowed) => [...flags.keys()].every((flag) => allowed.includes(flag));
+  if (command === "create" && p.length <= 1 && only("--label")) return { command, target: p[0], label: stringFlag(flags, "--label") };
+  if (command === "connect" && p.length >= 2 && only("--label")) return { command, paths: p, label: stringFlag(flags, "--label") };
+  if (command === "add" && p.length === 1 && only("--alias", "--label")) return { command, path: p[0], alias: stringFlag(flags, "--alias"), label: stringFlag(flags, "--label") };
+  if (command === "locate" && p.length === 2 && flags.size === 0) return { command, alias: p[0], path: p[1] };
+  if (command === "link" && p.length === 0 && only("--from", "--to", "--what", "--why")) {
+    const from = stringFlag(flags, "--from");
+    const to = stringFlag(flags, "--to");
+    if (!from || !to) return null;
+    return { command, from, to, what: stringFlag(flags, "--what"), why: stringFlag(flags, "--why") };
+  }
+  if (command === "unlink" && p.length === 1 && flags.size === 0) return { command, linkId: p[0] };
+  if (command === "validate" && p.length <= 1 && flags.size === 0) return { command, target: p[0] };
+  if (command === "open" && p.length <= 1 && only("--port", "--no-open")) {
+    const portText = stringFlag(flags, "--port");
+    const port = portText === void 0 ? 5199 : Number(portText);
+    if (!Number.isInteger(port) || port < 0 || port > 65535) return null;
+    return { command, target: p[0], port, open: !flags.has("--no-open") };
+  }
+  return null;
+}
+var WORKSPACE_USAGE = [
+  "Usage: visflow workspace <create|connect|add|locate|link|unlink|validate|open> \u2026",
+  "  visflow workspace create [workspace-path] [--label NAME]",
+  "  visflow workspace connect <repo-path> <repo-path> [...] [--label NAME]",
+  "  visflow workspace add <repo-path> [--alias ALIAS] [--label NAME]",
+  "  visflow workspace locate <alias> <repo-path>",
+  "  visflow workspace link --from repo/node --to repo/node [--what TEXT] [--why TEXT]",
+  "  visflow workspace unlink <link-id>",
+  "  visflow workspace validate [workspace-path]",
+  "  visflow workspace open [workspace-path] [--port N] [--no-open]"
+];
+async function runWorkspaceCommand(args, cwd, deps = {}) {
+  const parsed = parseWorkspaceArgs(args);
+  if (!parsed) return { code: 1, lines: WORKSPACE_USAGE };
+  try {
+    if (parsed.command === "create") {
+      const target2 = resolve4(cwd, parsed.target ?? ".");
+      const value = await createWorkspace(target2, parsed.label ?? basename3(target2));
+      return { code: 0, lines: [`Created workspace "${value.label}" at .visflow-workspace/workspace.json.`, "No repository map was changed."] };
+    }
+    if (parsed.command === "connect") {
+      const value = await connectExistingRepositories(cwd, parsed.paths.map((path) => resolve4(cwd, path)), { label: parsed.label });
+      return { code: 0, lines: [
+        `Connected ${value.members.length} existing mapped repositories in workspace "${value.label}".`,
+        "No member graph or decisions file was changed. Add relationships with `visflow workspace link`."
+      ] };
+    }
+    if (parsed.command === "add") {
+      const member = await addExistingRepository(cwd, resolve4(cwd, parsed.path), { alias: parsed.alias, label: parsed.label });
+      return { code: 0, lines: [`Added ${member.alias} (${member.label}).`, "No member graph or decisions file was changed."] };
+    }
+    if (parsed.command === "locate") {
+      await locateRepository(cwd, parsed.alias, resolve4(cwd, parsed.path));
+      return { code: 0, lines: [`Located ${parsed.alias}. Only local locations.json changed.`] };
+    }
+    if (parsed.command === "link") {
+      const link = await addManualLink(cwd, parsed);
+      const loaded = loadWorkspace(cwd);
+      const members = loaded.ok ? loaded.workspace.file.members : [];
+      return { code: 0, lines: [
+        `Linked ${formatQualifiedNodeRef(link.source, members)} \u2192 ${formatQualifiedNodeRef(link.target, members)} (source depends on target).`,
+        `Link id: ${link.id}`
+      ] };
+    }
+    if (parsed.command === "unlink") {
+      const link = await removeManualLink(cwd, parsed.linkId);
+      const loaded = loadWorkspace(cwd);
+      const members = loaded.ok ? loaded.workspace.file.members : [];
+      return { code: 0, lines: [`Removed ${formatQualifiedNodeRef(link.source, members)} \u2192 ${formatQualifiedNodeRef(link.target, members)} (${link.managedBy}).`] };
+    }
+    if (parsed.command === "validate") {
+      const target2 = resolve4(cwd, parsed.target ?? ".");
+      const loaded = loadWorkspace(target2);
+      if (!loaded.ok) return { code: 1, lines: [`Workspace is invalid (${loaded.error.kind}):`, ...loaded.error.messages] };
+      const warnings = [
+        ...loaded.workspace.members.filter((member) => member.status !== "ready").map((member) => `Warning: ${member.diagnostic}`),
+        ...loaded.workspace.links.filter((link) => link.status !== "resolved").map((link) => `Warning: link ${link.link.id} is ${link.status}.`)
+      ];
+      return { code: 0, lines: [
+        `Workspace is valid: ${loaded.workspace.members.length} member(s), ${loaded.workspace.links.length} cross-link(s).`,
+        ...warnings
+      ] };
+    }
+    const target = resolve4(cwd, parsed.target ?? ".");
+    if (!deps.openWorkspace) return { code: 1, lines: ["Workspace server is unavailable in this build."] };
+    const { url } = await deps.openWorkspace(target, { port: parsed.port, open: parsed.open });
+    return { code: 0, lines: [`VisFlow workspace running at ${url}  (Ctrl+C to stop)`], keepAlive: true };
+  } catch (error) {
+    return { code: 1, lines: [error instanceof Error ? error.message : String(error)] };
+  }
+}
+
 // src/cli/index.ts
 function runValidate(repoRoot) {
   const result = loadGraph(repoRoot);
@@ -28914,6 +29735,25 @@ async function runSyncReconcile(repoRoot, opts = {}) {
   const rec = await runReconcile(repoRoot, { force: true, llm: opts.llm, now: opts.now });
   const report = runSync(repoRoot);
   return rec.applied ? report : { code: report.code, lines: [...report.lines, `Reconcile: ${rec.reason}`] };
+}
+async function runCancel(repoRoot, opts = {}) {
+  const requested = requestReconcileCancellation(repoRoot);
+  if (!requested.requested) {
+    return requested.reason === "not-running" ? { code: 0, lines: ["No reconcile is currently running."] } : {
+      code: 1,
+      lines: ["Refusing to cancel: the running marker has no verifiable run token. Wait for it to finish or become stale."]
+    };
+  }
+  const waitMs = opts.waitMs ?? 5e3;
+  const pollMs = opts.pollMs ?? 50;
+  const deadline = Date.now() + waitMs;
+  while (isReconcileOwnerActive(repoRoot, requested.token) && Date.now() < deadline) {
+    await new Promise((resolve5) => setTimeout(resolve5, pollMs));
+  }
+  return isReconcileOwnerActive(repoRoot, requested.token) ? {
+    code: 1,
+    lines: ["Cancellation requested, but the reconcile has not stopped yet. The request remains active."]
+  } : { code: 0, lines: ["Reconcile cancelled. Its queued edits were preserved for the next run."] };
 }
 function runReport(repoRoot) {
   const briefings = readBriefings(repoRoot);
@@ -29104,7 +29944,12 @@ async function main(argv) {
     const { code, lines } = await runLicense(rest, process.env);
     printAndExit(code, lines);
   }
-  if (command === "validate" || command === "sync" || command === "open" || command === "index" || command === "context" || command === "report") {
+  if (command === "cancel") {
+    const target = rest[0] ? rest[0] : repoRoot;
+    const { code, lines } = await runCancel(target);
+    printAndExit(code, lines);
+  }
+  if (command === "validate" || command === "sync" || command === "open" || command === "index" || command === "context" || command === "report" || command === "workspace") {
     const gate = gateLines(await checkEntitlement(process.env));
     for (const line of gate.stderr) console.error(line);
     if (!gate.proceed) process.exit(1);
@@ -29148,8 +29993,17 @@ async function main(argv) {
       const target = rest[0] ? rest[0] : repoRoot;
       const { code, lines } = runReport(target);
       printAndExit(code, lines);
+    } else if (command === "workspace") {
+      const { code, lines, keepAlive } = await runWorkspaceCommand(rest, repoRoot, {
+        openWorkspace: async (workspaceRoot, opts) => startServer({ workspaceRoot, ...opts })
+      });
+      if (keepAlive) {
+        for (const line of lines) console.log(line);
+        return;
+      }
+      printAndExit(code, lines);
     } else {
-      printAndExit(1, ["Usage: visflow <validate|sync|open|index|context|report|license> [--port N] [--no-open] [<key>|remove]"]);
+      printAndExit(1, ["Usage: visflow <validate|sync|cancel|open|index|context|report|workspace|license> \u2026", ...WORKSPACE_USAGE]);
     }
   } catch (e) {
     if (e instanceof DecisionsInvalidError) printAndExit(1, [e.message]);
@@ -29162,6 +30016,7 @@ export {
   openErrorLines,
   parseContextArgs,
   parseOpenArgs,
+  runCancel,
   runLicense,
   runReport,
   runSync,

@@ -10,6 +10,11 @@ allowed-tools: Read, Edit, Bash
 
 Unlike the automatic on-Stop reconcile — which is **scoped** to just the files you changed that turn and their immediate neighbors — `/visflow:sync` performs a **broad catch-up**: it may inspect the whole repository to rebuild a stale or incomplete map. It is slower but is the way to fully resync after large, batched, or externally made changes.
 
+There is no default time or dollar cap. Large repositories may legitimately take many minutes.
+Use `/visflow:cancel` to stop the active pass safely; VisFlow preserves its queued edits for the
+next run. Environments that require a hard deadline may set `VISFLOW_RECONCILE_TIMEOUT_MS` to a
+positive integer.
+
 The reconcile runs through your own Claude Code session (or `ANTHROPIC_API_KEY` if that env var is set). It is **read-only and gate-validated**: it may only read code (no edits, writes, or shell), and changes are applied only after passing VisFlow's safety gates (schema validation + node-loss check), so a bad proposal is skipped rather than applied.
 
 After the reconcile, **orphaned** decisions are reasoning recorded under a component id that has no matching node in the map — usually because the id was renamed, or the decision was logged before the component existed.

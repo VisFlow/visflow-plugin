@@ -29,10 +29,27 @@ under the terms they shipped with.
 - `/visflow:init` — scan the repo and build `.visflow/graph.json` (the map)
 - `/visflow:open` — open the interactive map in your browser
 - `/visflow:sync` — force a full reconcile and print a decisions report
+- `/visflow:workspace` — connect existing repository maps into one repository-first view
 - `/visflow:license` — activate a key, check trial/license status, or remove the key
 - **Decision log** — when you and Claude settle on an architectural choice, Claude records
   the what and the why (just say "record that decision" if it doesn't offer). Every decision
   is pinned to its component on the map and stays visible as the code evolves.
+
+### Multi-repository workspaces
+
+From a parent directory, `/visflow:workspace` connects two or more repositories that already have
+VisFlow maps. The repositories and their map/decision files remain separate; the workspace adds a
+portable membership manifest and manual cross-repository relationships. This release does not
+initialize missing member maps or automatically discover/reconcile cross-repository links.
+
+The equivalent CLI flow is:
+
+```bash
+visflow workspace connect ./web ./api --label "Product"
+visflow workspace link --from web/api-client --to api/http-api
+visflow workspace validate
+visflow workspace open
+```
 
 ## How the living map works
 

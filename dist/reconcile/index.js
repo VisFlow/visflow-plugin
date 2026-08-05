@@ -4178,6 +4178,24 @@ import { join as join3 } from "node:path";
 
 // src/core/stale-pid-file.ts
 import { readFileSync as readFileSync2, statSync, renameSync as renameSync2, rmSync, utimesSync } from "node:fs";
+function readPidFileOwner(path) {
+  try {
+    const raw = readFileSync2(path, "utf8");
+    const trimmed = raw.trim();
+    if (/^\d+$/.test(trimmed)) {
+      const pid = Number(trimmed);
+      return Number.isInteger(pid) && pid > 0 ? { pid, raw } : null;
+    }
+    const parsed = JSON.parse(trimmed);
+    if (!parsed || typeof parsed !== "object") return null;
+    const owner = parsed;
+    if (!Number.isInteger(owner.pid) || owner.pid <= 0) return null;
+    if (typeof owner.token !== "string" || owner.token.length === 0) return null;
+    return { pid: owner.pid, token: owner.token, raw };
+  } catch {
+    return null;
+  }
+}
 function isPidAlive(pid) {
   try {
     process.kill(pid, 0);
@@ -4189,9 +4207,9 @@ function isPidAlive(pid) {
 function isStalePidFile(path, ttlMs) {
   try {
     if (Date.now() - statSync(path).mtimeMs > ttlMs) return true;
-    const pid = Number.parseInt(readFileSync2(path, "utf8"), 10);
-    if (!Number.isInteger(pid) || pid <= 0) return false;
-    return !isPidAlive(pid);
+    const owner = readPidFileOwner(path);
+    if (!owner) return false;
+    return !isPidAlive(owner.pid);
   } catch {
     return false;
   }
@@ -4215,22 +4233,21 @@ function stealPidFile(path) {
   }
   return true;
 }
-function releaseOwnedPidFile(path) {
+function releaseOwnedPidFile(path, expectedRaw = `${process.pid}`) {
   try {
-    if (readFileSync2(path, "utf8") === `${process.pid}`) rmSync(path, { force: true });
+    if (readFileSync2(path, "utf8") === expectedRaw) rmSync(path, { force: true });
   } catch {
   }
 }
 
 // src/core/lock.ts
 var sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-async function withLock(repoRoot, fn, opts = {}) {
+async function withStateLock(stateDir, fn, opts = {}) {
   const retries = opts.retries ?? 100;
   const delayMs = opts.delayMs ?? 20;
   const staleMs = opts.staleMs ?? 6e4;
-  const dir = join3(repoRoot, ".visflow");
-  const lockPath = join3(dir, ".lock");
-  mkdirSync2(dir, { recursive: true });
+  const lockPath = join3(stateDir, ".lock");
+  mkdirSync2(stateDir, { recursive: true });
   for (let attempt = 0; ; attempt++) {
     try {
       writeFileSync2(lockPath, `${process.pid}`, { flag: "wx" });
@@ -4246,6 +4263,9 @@ async function withLock(repoRoot, fn, opts = {}) {
   } finally {
     releaseOwnedPidFile(lockPath);
   }
+}
+function withLock(repoRoot, fn, opts = {}) {
+  return withStateLock(join3(repoRoot, ".visflow"), fn, opts);
 }
 
 // src/schema/decisions-schema.ts
@@ -4360,6 +4380,19 @@ function drainEvents(repoRoot) {
       return abandoned;
     }
   };
+}
+function hasRecoverableEventDrains(repoRoot) {
+  const dir = join5(repoRoot, ".visflow");
+  let entries;
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return false;
+  }
+  return entries.some((name) => {
+    const m = /^events\.log\.draining-(\d+)-\d+$/.exec(name);
+    return !!m && !isPidAlive(Number.parseInt(m[1], 10));
+  });
 }
 function sweepAbandonedDrains(repoRoot) {
   const dir = join5(repoRoot, ".visflow");
@@ -4497,6 +4530,7 @@ function updateMeta(repoRoot, update, opts = {}) {
 // src/core/run-guard.ts
 import { writeFileSync as writeFileSync4, mkdirSync as mkdirSync5 } from "node:fs";
 import { join as join9 } from "node:path";
+import { randomUUID } from "node:crypto";
 var GUARD_TTL_MS = 10 * 60 * 1e3;
 function acquireRunGuard(repoRoot, opts = {}) {
   const ttlMs = opts.ttlMs ?? GUARD_TTL_MS;
@@ -4504,13 +4538,19 @@ function acquireRunGuard(repoRoot, opts = {}) {
   mkdirSync5(join9(repoRoot, ".visflow"), { recursive: true });
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      writeFileSync4(path, `${process.pid}`, { flag: "wx" });
+      const token = randomUUID();
+      const ownerRaw = JSON.stringify({ version: 1, pid: process.pid, token });
+      writeFileSync4(path, ownerRaw, { flag: "wx" });
       const lease = setInterval(() => touchPidFile(path), Math.max(1e3, Math.floor(ttlMs / 5)));
       lease.unref();
-      return { acquired: true, release: () => {
-        clearInterval(lease);
-        releaseOwnedPidFile(path);
-      } };
+      return {
+        acquired: true,
+        token,
+        release: () => {
+          clearInterval(lease);
+          releaseOwnedPidFile(path, ownerRaw);
+        }
+      };
     } catch {
       if (attempt === 0 && isStalePidFile(path, ttlMs) && stealPidFile(path)) continue;
       break;
@@ -4520,8 +4560,41 @@ function acquireRunGuard(repoRoot, opts = {}) {
   } };
 }
 
+// src/core/reconcile-cancel.ts
+import { existsSync as existsSync5, readFileSync as readFileSync6, rmSync as rmSync4 } from "node:fs";
+import { join as join10 } from "node:path";
+var requestPath = (repoRoot) => join10(repoRoot, ".visflow", ".reconcile-cancel.json");
+function readCancelRequest(repoRoot) {
+  try {
+    const parsed = JSON.parse(readFileSync6(requestPath(repoRoot), "utf8"));
+    return parsed.version === 1 && typeof parsed.token === "string" && typeof parsed.requestedAt === "string" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+function watchReconcileCancellation(repoRoot, token, controller, pollMs = 200) {
+  const poll = () => {
+    if (controller.signal.aborted) return;
+    if (readCancelRequest(repoRoot)?.token === token) controller.abort("cancelled");
+  };
+  poll();
+  const timer = setInterval(poll, pollMs);
+  timer.unref();
+  return () => clearInterval(timer);
+}
+function clearOwnedCancellationRequest(repoRoot, token) {
+  try {
+    if (readCancelRequest(repoRoot)?.token === token) rmSync4(requestPath(repoRoot), { force: true });
+  } catch {
+  }
+}
+
 // src/reconcile/projection.ts
 var NEIGHBOR_FULL_MAX = 8;
+function projectionForAffectedScope(requested, scope) {
+  const candidates = scope.unownedSourceFiles ?? scope.newFiles ?? [];
+  return candidates.length > 0 ? "full" : requested;
+}
 function indexJson(n) {
   return {
     id: n.id,
@@ -4553,43 +4626,90 @@ function projectGraphForPrompt(graph, scope, opts) {
 
 // src/reconcile/prompt.ts
 var bullets = (xs) => xs.length ? xs.map((x) => `  - ${x}`).join("\n") : "  (none)";
+var candidatesOf = (scope) => scope.unownedSourceFiles ?? scope.newFiles ?? [];
+var ignoredOf = (scope) => scope.ignoredFiles ?? [];
+var ownedOf = (scope) => {
+  if (scope.ownedChangedFiles) return scope.ownedChangedFiles;
+  const other = /* @__PURE__ */ new Set([...candidatesOf(scope), ...ignoredOf(scope)]);
+  return scope.changedFiles.filter((f) => !other.has(f));
+};
+function initParityRules(hasCandidates) {
+  if (!hasCandidates) return [];
+  return [
+    "",
+    "Unowned files are EVIDENCE for logical components, never automatic nodes. It is valid to leave",
+    "a candidate unmapped when it does not represent component source.",
+    "For each candidate, first prefer adoption by an existing component whose responsibility it serves.",
+    "Group related candidate files into one component. NEVER create one node per file.",
+    "Create a node only for a distinct responsibility that no existing component owns.",
+    "Ordinary tests, docs, examples, fixtures, and generated/build artifacts do not become components.",
+    "An otherwise read-only existing node may be emitted ONLY to adopt one or more candidates: preserve",
+    "all of its current files, and add no files except candidates listed below."
+  ];
+}
 function scopedBody(scope, neighborFiles, demoted, excluded) {
-  const excludedSet = new Set(excluded);
-  const readable = [.../* @__PURE__ */ new Set([...scope.changedFiles, ...neighborFiles])].filter((f) => !excludedSet.has(f));
-  const newFiles = scope.newFiles.filter((f) => !excludedSet.has(f));
+  const candidates = candidatesOf(scope);
+  const ignored = ignoredOf(scope);
+  const excludedSet = /* @__PURE__ */ new Set([...excluded, ...ignored]);
+  const consideredChanged = scope.changedFiles.filter((f) => !excludedSet.has(f));
+  const readable = [.../* @__PURE__ */ new Set([
+    ...consideredChanged,
+    ...candidates.length > 0 ? [] : neighborFiles
+  ])];
+  const visibleCandidates = candidates.filter((f) => !excludedSet.has(f));
   return [
     "Files changed this turn:",
     bullets(scope.changedFiles),
     "",
+    "Already-owned changed source files:",
+    bullets(ownedOf(scope)),
+    "Unowned source candidates (optional evidence for adoption or a distinct new component):",
+    bullets(visibleCandidates),
+    ...ignored.length ? ["Ignored routine artifacts (not component candidates unless explicitly targeted by feedback):", bullets(ignored)] : [],
+    "",
     `Affected nodes (whose files changed): ${scope.affectedNodeIds.join(", ") || "(none)"}`,
-    demoted ? `Neighbor nodes (context-only; their connecting edges are in the \`edges\` tier of the graph embed): ${scope.neighborNodeIds.join(", ")}` : `Neighbor nodes (direct dependencies/dependents \u2014 read to keep cross-edges accurate): ${scope.neighborNodeIds.join(", ") || "(none)"}`,
-    "Files you MAY read on disk (changed + neighbor files) \u2014 read NOTHING else:",
+    demoted ? candidateContextLine(scope.neighborNodeIds, candidates.length > 0) : `Neighbor nodes (direct dependencies/dependents \u2014 read to keep cross-edges accurate): ${scope.neighborNodeIds.join(", ") || "(none)"}`,
+    candidates.length ? "Files you MAY read on disk (scoped changed files only) \u2014 read NOTHING else:" : "Files you MAY read on disk (changed + neighbor files) \u2014 read NOTHING else:",
     bullets(readable),
-    newFiles.length ? `New files not yet in any node \u2014 create node(s) for them:
-${bullets(newFiles)}` : "No new files.",
+    ...initParityRules(visibleCandidates.length > 0),
+    ...!visibleCandidates.length ? ["", "No unowned source candidates."] : [],
     "",
     "Rules: Do NOT Grep or Glob the repository. Do NOT read files outside the list above.",
     ...excluded.length ? ["EXCLUDED (resolve outside the repository \u2014 do NOT read them, do NOT create nodes for them):", bullets(excluded)] : [],
-    demoted ? "Modify ONLY the affected nodes (and add nodes for new files). Neighbor and index nodes are read-only." : "Modify ONLY the affected and neighbor nodes (and add nodes for new files). Leave every other node untouched.",
+    visibleCandidates.length ? demoted ? "Modify affected nodes normally. All other existing nodes, including neighbors, are read-only except for candidate adoption under the rules above." : "Modify affected and neighbor nodes normally. Other existing nodes are read-only except for candidate adoption under the rules above." : demoted ? "Modify ONLY the affected nodes (and add nodes for new files). Neighbor and index nodes are read-only." : "Modify ONLY the affected and neighbor nodes (and add nodes for new files). Leave every other node untouched.",
     "Include a node id in `remove` ONLY if a changed file leaves it with no remaining files on disk.",
     "Change `group` membership ONLY on nodes you may modify (per the rules above); other nodes' groups are read-only."
   ];
 }
+function candidateContextLine(neighborIds, completeContext) {
+  return completeContext ? `Neighbor nodes (context-only; shown completely in the full graph embed): ${neighborIds.join(", ")}` : `Neighbor nodes (context-only; their connecting edges are in the \`edges\` tier of the graph embed): ${neighborIds.join(", ")}`;
+}
 function scopedInlineBody(scope, files, demoted) {
+  const candidates = candidatesOf(scope);
+  const ignored = ignoredOf(scope);
+  const ignoredSet = new Set(ignored);
+  const permitted = candidates.length > 0 ? new Set(scope.changedFiles.filter((f) => !ignoredSet.has(f))) : null;
+  const scopedFiles = files.filter((f) => !ignoredSet.has(f.path) && (permitted === null || permitted.has(f.path)));
   return [
     "Files changed this turn:",
     bullets(scope.changedFiles),
     "",
+    "Already-owned changed source files:",
+    bullets(ownedOf(scope)),
+    "Unowned source candidates (optional evidence for adoption or a distinct new component):",
+    bullets(candidates),
+    ...ignored.length ? ["Ignored routine artifacts (not component candidates unless explicitly targeted by feedback):", bullets(ignored)] : [],
+    "",
     `Affected nodes (whose files changed): ${scope.affectedNodeIds.join(", ") || "(none)"}`,
-    demoted ? `Neighbor nodes (context-only; their connecting edges are in the \`edges\` tier of the graph embed): ${scope.neighborNodeIds.join(", ")}` : `Neighbor nodes (direct dependencies/dependents): ${scope.neighborNodeIds.join(", ") || "(none)"}`,
-    scope.newFiles.length ? `New files not yet in any node \u2014 create node(s) for them:
-${bullets(scope.newFiles)}` : "No new files.",
+    demoted ? candidateContextLine(scope.neighborNodeIds, candidates.length > 0) : `Neighbor nodes (direct dependencies/dependents): ${scope.neighborNodeIds.join(", ") || "(none)"}`,
+    ...initParityRules(candidates.length > 0),
+    ...!candidates.length ? ["", "No unowned source candidates."] : [],
     "",
     "The complete contents of every file in scope are inlined below. Do NOT use any tools \u2014",
     "everything you may consider is here.",
-    ...files.flatMap((f) => [``, `### ${f.path}`, "```", f.contents, "```"]),
+    ...scopedFiles.flatMap((f) => [``, `### ${f.path}`, "```", f.contents, "```"]),
     "",
-    demoted ? "Modify ONLY the affected nodes (and add nodes for new files). Neighbor and index nodes are read-only." : "Modify ONLY the affected and neighbor nodes (and add nodes for new files). Leave every other node untouched.",
+    candidates.length ? demoted ? "Modify affected nodes normally. All other existing nodes, including neighbors, are read-only except for candidate adoption under the rules above." : "Modify affected and neighbor nodes normally. Other existing nodes are read-only except for candidate adoption under the rules above." : demoted ? "Modify ONLY the affected nodes (and add nodes for new files). Neighbor and index nodes are read-only." : "Modify ONLY the affected and neighbor nodes (and add nodes for new files). Leave every other node untouched.",
     "Include a node id in `remove` ONLY if a changed file leaves it with no remaining files on disk.",
     "Change `group` membership ONLY on nodes you may modify (per the rules above); other nodes' groups are read-only."
   ];
@@ -4604,11 +4724,13 @@ function fullBody() {
 }
 function buildReconcilePrompt(input) {
   const { mode, graph, orphanDecisions, orphanIds, scope } = input;
-  const projection = input.projection ?? "projected";
+  const requestedProjection = input.projection ?? "projected";
+  const candidateContext = mode === "scoped" && scope ? candidatesOf(scope).length > 0 : false;
+  const projection = mode === "scoped" && scope ? projectionForAffectedScope(requestedProjection, scope) : requestedProjection;
   const affectedIds = new Set(scope ? scope.affectedNodeIds : []);
   const neighborIds = new Set(scope ? scope.neighborNodeIds : []);
   const demoted = neighborIds.size > NEIGHBOR_FULL_MAX;
-  const neighborFiles = scope && !demoted ? [...new Set(graph.nodes.filter((n) => scope.neighborNodeIds.includes(n.id)).flatMap((n) => n.files))] : [];
+  const neighborFiles = scope && !demoted && !candidateContext ? [...new Set(graph.nodes.filter((n) => scope.neighborNodeIds.includes(n.id)).flatMap((n) => n.files))] : [];
   const embed = projectGraphForPrompt(graph, { affectedIds, neighborIds }, { mode: projection });
   const graphBlock = projection === "projected" ? [
     demoted ? 'Current graph as {"groups":[\u2026],"scoped":[\u2026],"edges":[\u2026],"index":[\u2026]}. `scoped` nodes are COMPLETE \u2014 the only' : 'Current graph as {"groups":[\u2026],"scoped":[\u2026],"index":[\u2026]}. `scoped` nodes are COMPLETE \u2014 these are the only',
@@ -4620,7 +4742,12 @@ function buildReconcilePrompt(input) {
     "```json",
     embed,
     "```"
-  ] : ["Current graph.json:", "```json", embed, "```"];
+  ] : [
+    candidateContext ? "Current graph.json (COMPLETE adoption context; scoped read/edit rules below still apply):" : "Current graph.json:",
+    "```json",
+    embed,
+    "```"
+  ];
   const header = [
     "You are VisFlow's map reconciler. Update the architecture graph to match the current code.",
     input.inlineFiles ? "You have NO tools \u2014 respond from the inlined data only. You MUST NOT edit anything." : "You may use ONLY the Read, Grep, and Glob tools \u2014 you are read-only and MUST NOT edit anything.",
@@ -4651,6 +4778,192 @@ ${JSON.stringify(orphanDecisions, null, 2)}
   return [...header, ...body, ...output].join("\n");
 }
 
+// src/reconcile/proposal-scope.ts
+var candidatesOf2 = (scope) => scope.unownedSourceFiles ?? scope.newFiles ?? [];
+function validateScopedProposal(input) {
+  const { graph, scope, proposal } = input;
+  const violations = [];
+  const candidates = new Set(candidatesOf2(scope));
+  const affected = new Set(scope.affectedNodeIds);
+  const editableNeighbors = scope.neighborNodeIds.length <= NEIGHBOR_FULL_MAX ? new Set(scope.neighborNodeIds) : /* @__PURE__ */ new Set();
+  const normallyEditable = /* @__PURE__ */ new Set([...affected, ...editableNeighbors]);
+  const previousById = new Map(graph.nodes.map((n) => [n.id, n]));
+  if (!Array.isArray(proposal.upsert)) {
+    violations.push({ code: "malformed-proposal", message: "scoped proposal upsert must be an array" });
+  }
+  if (!Array.isArray(proposal.remove)) {
+    violations.push({ code: "malformed-proposal", message: "scoped proposal remove must be an array" });
+  }
+  if (!Array.isArray(proposal.decisionMoves)) {
+    violations.push({ code: "malformed-proposal", message: "scoped proposal decisionMoves must be an array" });
+  }
+  if (proposal.groupUpsert !== void 0 && !Array.isArray(proposal.groupUpsert)) {
+    violations.push({ code: "malformed-proposal", message: "scoped proposal groupUpsert must be an array when supplied" });
+  }
+  const mutableNodeIds = new Set(normallyEditable);
+  const rawUpserts = Array.isArray(proposal.upsert) ? proposal.upsert : [];
+  for (const raw of rawUpserts) {
+    if (!raw || typeof raw !== "object") {
+      violations.push({ code: "malformed-upsert", message: "upsert entry is not an object" });
+      continue;
+    }
+    const node = raw;
+    if (typeof node.id !== "string" || !Array.isArray(node.files) || !node.files.every((f) => typeof f === "string")) {
+      violations.push({
+        code: "malformed-upsert",
+        message: "upsert entry must expose a string id and string files[] for scope validation",
+        ...typeof node.id === "string" ? { nodeId: node.id } : {}
+      });
+      continue;
+    }
+    const nodeId = node.id;
+    const files = node.files;
+    const previous = previousById.get(nodeId);
+    if (!previous) {
+      const candidateFiles = files.filter((f) => candidates.has(f));
+      const nonCandidates = files.filter((f) => !candidates.has(f));
+      let allowed2 = true;
+      if (candidateFiles.length === 0) {
+        allowed2 = false;
+        violations.push({
+          code: "new-node-without-candidate",
+          message: `new node "${nodeId}" must contain at least one scoped unowned source candidate`,
+          nodeId
+        });
+      }
+      if (nonCandidates.length > 0) {
+        allowed2 = false;
+        violations.push({
+          code: "new-node-claims-noncandidate",
+          message: `new node "${nodeId}" claims files outside the scoped candidate set`,
+          nodeId,
+          files: nonCandidates
+        });
+      }
+      if (allowed2) mutableNodeIds.add(nodeId);
+      continue;
+    }
+    if (normallyEditable.has(nodeId)) {
+      mutableNodeIds.add(nodeId);
+      continue;
+    }
+    const proposed = new Set(files);
+    const previousFiles = new Set(previous.files);
+    const added = [...proposed].filter((f) => !previousFiles.has(f));
+    const adopted = added.filter((f) => candidates.has(f));
+    const dropped = previous.files.filter((f) => !proposed.has(f));
+    const unscopedAdds = added.filter((f) => !candidates.has(f));
+    let allowed = true;
+    if (adopted.length === 0) {
+      allowed = false;
+      violations.push({
+        code: candidates.size > 0 ? "adoption-without-candidate" : "existing-upsert-out-of-scope",
+        message: candidates.size > 0 ? `read-only node "${nodeId}" may be upserted only when it adopts a scoped candidate` : `existing node "${nodeId}" is outside the editable scope`,
+        nodeId
+      });
+    }
+    if (dropped.length > 0) {
+      allowed = false;
+      violations.push({
+        code: "adoption-drops-existing-files",
+        message: `candidate adoption by "${nodeId}" must preserve every previous file`,
+        nodeId,
+        files: dropped
+      });
+    }
+    if (unscopedAdds.length > 0) {
+      allowed = false;
+      violations.push({
+        code: "adoption-claims-unscoped-files",
+        message: `candidate adoption by "${nodeId}" may add only scoped candidate files`,
+        nodeId,
+        files: unscopedAdds
+      });
+    }
+    if (allowed) mutableNodeIds.add(nodeId);
+  }
+  for (const rawId of Array.isArray(proposal.remove) ? proposal.remove : []) {
+    if (typeof rawId !== "string" || !affected.has(rawId)) {
+      violations.push({
+        code: "remove-out-of-scope",
+        message: typeof rawId === "string" ? `node "${rawId}" may not be removed outside the affected set` : "remove entry is not a scoped affected node id",
+        ...typeof rawId === "string" ? { nodeId: rawId } : {}
+      });
+    }
+  }
+  const orphanIds = new Set(input.orphanIds);
+  for (const raw of Array.isArray(proposal.decisionMoves) ? proposal.decisionMoves : []) {
+    const fromId = raw && typeof raw === "object" ? raw.fromId : void 0;
+    if (typeof fromId !== "string" || !orphanIds.has(fromId)) {
+      violations.push({
+        code: "decision-move-out-of-scope",
+        message: typeof fromId === "string" ? `decision move source "${fromId}" was not supplied as an orphan id` : "decision move lacks a supplied orphan source id",
+        ...typeof fromId === "string" ? { fromId } : {}
+      });
+    }
+  }
+  const removeSet = new Set(
+    (Array.isArray(proposal.remove) ? proposal.remove : []).filter((id) => typeof id === "string")
+  );
+  const lastUpsertById = /* @__PURE__ */ new Map();
+  for (const raw of rawUpserts) {
+    if (raw && typeof raw === "object" && typeof raw.id === "string") {
+      const node = raw;
+      lastUpsertById.set(node.id, node);
+    }
+  }
+  const postNodes = [];
+  const placed = /* @__PURE__ */ new Set();
+  for (const previous of graph.nodes) {
+    if (removeSet.has(previous.id)) continue;
+    postNodes.push(lastUpsertById.get(previous.id) ?? previous);
+    placed.add(previous.id);
+  }
+  for (const node of lastUpsertById.values()) {
+    if (!placed.has(node.id) && !removeSet.has(node.id)) postNodes.push(node);
+  }
+  const existingGroupIds = new Set((graph.groups ?? []).map((g) => g.id));
+  const rawGroupUpserts = Array.isArray(proposal.groupUpsert) ? proposal.groupUpsert : [];
+  for (const raw of rawGroupUpserts) {
+    if (!raw || typeof raw !== "object" || typeof raw.id !== "string") {
+      violations.push({ code: "malformed-group-upsert", message: "groupUpsert entry lacks a string id" });
+      continue;
+    }
+    const groupId = raw.id;
+    const members = postNodes.filter((n) => n.group === groupId).map((n) => n.id);
+    const readonlyMembers = members.filter((id) => !mutableNodeIds.has(id));
+    if (members.length === 0 || !existingGroupIds.has(groupId) && members.every((id) => !mutableNodeIds.has(id))) {
+      violations.push({
+        code: "group-upsert-without-scoped-members",
+        message: `group "${groupId}" has no safely scoped proposed members`,
+        groupId
+      });
+    } else if (readonlyMembers.length > 0) {
+      violations.push({
+        code: "group-upsert-touches-readonly-members",
+        message: `group "${groupId}" metadata also affects read-only member nodes`,
+        groupId
+      });
+    }
+  }
+  return violations.length > 0 ? { ok: false, violations } : { ok: true };
+}
+function validateProposalScope(input) {
+  if (input.mode === "full") return { ok: true };
+  if (!input.scope) {
+    return {
+      ok: false,
+      violations: [{ code: "missing-scope", message: "scoped proposal validation requires an affected scope" }]
+    };
+  }
+  return validateScopedProposal({
+    graph: input.graph,
+    scope: input.scope,
+    proposal: input.proposal,
+    orphanIds: input.orphanIds
+  });
+}
+
 // src/reconcile/scope.ts
 import { isAbsolute as isAbsolute2 } from "node:path";
 
@@ -4662,29 +4975,93 @@ function toRepoRelative(file, repoRoot) {
 }
 
 // src/reconcile/scope.ts
-function resolveAffectedNodes(events, graph, repoRoot) {
+function isIgnoredComponentEvidence(path) {
+  const lower = path.toLowerCase();
+  const segments = lower.split("/");
+  const base = segments.at(-1) ?? "";
+  if (segments.some((s) => [
+    "__tests__",
+    "test",
+    "tests",
+    "spec",
+    "specs",
+    "doc",
+    "docs",
+    "documentation",
+    "example",
+    "examples",
+    "demo",
+    "demos",
+    "fixture",
+    "fixtures",
+    "snapshot",
+    "snapshots",
+    "__snapshots__",
+    "generated",
+    "gen",
+    "autogen",
+    "dist",
+    "build",
+    "out",
+    "coverage",
+    ".next",
+    "node_modules",
+    ".git",
+    ".visflow",
+    ".cache"
+  ].includes(s))) return true;
+  if (/(^test_.+|.+_(test|spec))\.[^/]+$/.test(base) || /\.(test|spec)\.[^/]+$/.test(base) || base === "conftest.py" || /\.(snap|lock|min\.(js|css)|map)$/.test(base)) return true;
+  return /\.(md|mdx|rst|adoc|txt)$/.test(base) || /^(readme|changelog|changes|license|licence|authors|contributors|code_of_conduct)(\.|$)/.test(base) || /^(package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?)$/.test(base);
+}
+function resolveAffectedNodes(events, graph, repoRoot, opts = {}) {
+  const safeRelative = (file) => {
+    const rel = toRepoRelative(file, repoRoot);
+    return rel.length > 0 && rel !== "." && !rel.startsWith("..") && !isAbsolute2(rel) ? rel : null;
+  };
   const changedFiles = [...new Set(
-    events.map((e) => toRepoRelative(e.file, repoRoot)).filter((rel) => rel.length > 0 && rel !== "." && !rel.startsWith("..") && !isAbsolute2(rel))
+    events.map((e) => safeRelative(e.file)).filter((rel) => rel !== null)
   )];
   const changedSet = new Set(changedFiles);
   const affected = graph.nodes.filter((n) => n.files.some((f) => changedSet.has(f)));
   const affectedIds = new Set(affected.map((n) => n.id));
   const knownFiles = new Set(graph.nodes.flatMap((n) => n.files));
-  const newFiles = changedFiles.filter((f) => !knownFiles.has(f));
+  const ownedChangedFiles = changedFiles.filter((f) => knownFiles.has(f));
+  const explicit = /* @__PURE__ */ new Set();
+  for (const file of opts.explicitFiles ?? []) {
+    const rel = safeRelative(file);
+    if (rel !== null) explicit.add(rel);
+  }
+  for (const event of events) {
+    if (typeof event.tool !== "string" || event.tool.toLowerCase() !== "feedback") continue;
+    const rel = safeRelative(event.file);
+    if (rel !== null) explicit.add(rel);
+  }
+  const unowned = changedFiles.filter((f) => !knownFiles.has(f));
+  const ignoredFiles = unowned.filter((f) => isIgnoredComponentEvidence(f) && !explicit.has(f));
+  const ignoredSet = new Set(ignoredFiles);
+  const unownedSourceFiles = unowned.filter((f) => !ignoredSet.has(f));
   const neighbors = /* @__PURE__ */ new Set();
   for (const n of affected) for (const d of n.dependsOn) if (!affectedIds.has(d.id)) neighbors.add(d.id);
   for (const n of graph.nodes) {
     if (affectedIds.has(n.id)) continue;
     if (n.dependsOn.some((d) => affectedIds.has(d.id))) neighbors.add(n.id);
   }
-  return { changedFiles, affectedNodeIds: [...affectedIds], neighborNodeIds: [...neighbors], newFiles };
+  return {
+    changedFiles,
+    ownedChangedFiles,
+    unownedSourceFiles,
+    ignoredFiles,
+    affectedNodeIds: [...affectedIds],
+    neighborNodeIds: [...neighbors],
+    newFiles: unownedSourceFiles
+  };
 }
 
 // src/core/feedback-targets.ts
-import { appendFileSync as appendFileSync2, existsSync as existsSync5, mkdirSync as mkdirSync6, readFileSync as readFileSync6, renameSync as renameSync4, rmSync as rmSync4 } from "node:fs";
-import { join as join10 } from "node:path";
+import { appendFileSync as appendFileSync2, existsSync as existsSync6, mkdirSync as mkdirSync6, readFileSync as readFileSync7, readdirSync as readdirSync2, renameSync as renameSync4, rmSync as rmSync5 } from "node:fs";
+import { join as join11 } from "node:path";
 function targetsPath(repoRoot) {
-  return join10(repoRoot, ".visflow", "feedback-targets.log");
+  return join11(repoRoot, ".visflow", "feedback-targets.log");
 }
 function parseTargets(raw) {
   const nodeIds = /* @__PURE__ */ new Set();
@@ -4702,12 +5079,12 @@ function parseTargets(raw) {
 }
 function enqueueTargets(repoRoot, nodeIds, files = []) {
   if (nodeIds.length === 0 && files.length === 0) return;
-  mkdirSync6(join10(repoRoot, ".visflow"), { recursive: true });
+  mkdirSync6(join11(repoRoot, ".visflow"), { recursive: true });
   appendFileSync2(targetsPath(repoRoot), JSON.stringify({ nodes: nodeIds, files }) + "\n");
 }
 function drainTargets(repoRoot) {
   const path = targetsPath(repoRoot);
-  if (!existsSync5(path)) return { nodeIds: [], files: [], commit: () => {
+  if (!existsSync6(path)) return { nodeIds: [], files: [], commit: () => {
   }, restore: () => {
   } };
   const snapshot = `${path}.draining-${process.pid}-${Date.now()}`;
@@ -4715,18 +5092,55 @@ function drainTargets(repoRoot) {
   let nodeIds = [];
   let files = [];
   try {
-    ({ nodeIds, files } = parseTargets(readFileSync6(snapshot, "utf8")));
+    ({ nodeIds, files } = parseTargets(readFileSync7(snapshot, "utf8")));
   } catch {
   }
   return {
     nodeIds,
     files,
-    commit: () => rmSync4(snapshot, { force: true }),
+    commit: () => rmSync5(snapshot, { force: true }),
     restore: () => {
       enqueueTargets(repoRoot, nodeIds, files);
-      rmSync4(snapshot, { force: true });
+      rmSync5(snapshot, { force: true });
     }
   };
+}
+function hasRecoverableTargetDrains(repoRoot) {
+  const dir = join11(repoRoot, ".visflow");
+  let entries;
+  try {
+    entries = readdirSync2(dir);
+  } catch {
+    return false;
+  }
+  return entries.some((name) => {
+    const m = /^feedback-targets\.log\.draining-(\d+)-\d+$/.exec(name);
+    return !!m && !isPidAlive(Number.parseInt(m[1], 10));
+  });
+}
+function sweepAbandonedTargetDrains(repoRoot) {
+  const dir = join11(repoRoot, ".visflow");
+  let entries;
+  try {
+    entries = readdirSync2(dir);
+  } catch {
+    return { requeued: 0 };
+  }
+  let requeued = 0;
+  for (const name of entries) {
+    const m = /^feedback-targets\.log\.draining-(\d+)-\d+$/.exec(name);
+    if (!m) continue;
+    if (isPidAlive(Number.parseInt(m[1], 10))) continue;
+    const snapshot = join11(dir, name);
+    try {
+      const targets = parseTargets(readFileSync7(snapshot, "utf8"));
+      enqueueTargets(repoRoot, targets.nodeIds, targets.files);
+      requeued += targets.nodeIds.length + targets.files.length;
+    } catch {
+    }
+    rmSync5(snapshot, { force: true });
+  }
+  return { requeued };
 }
 
 // src/reconcile/patch.ts
@@ -4846,10 +5260,6 @@ function buildClaudeArgs(opts) {
     "--permission-mode",
     "dontAsk",
     "--strict-mcp-config",
-    // Per-reconcile cost ceiling. The installed CLI has no --max-turns (claude 2.1.187);
-    // --max-budget-usd bounds a runaway read-only pass instead. Verified via the Task 9 smoke.
-    "--max-budget-usd",
-    "0.50",
     "--no-session-persistence",
     // config isolation so the spawned run does NOT re-load our plugin hooks:
     ...opts.byok ? ["--bare"] : ["--safe-mode"]
@@ -4937,29 +5347,109 @@ function withResultTail(reason, text, max = 800) {
   const tail = text.trim().slice(-max);
   return tail ? `${reason} | result tail: ${tail}` : reason;
 }
+function parseReconcileTimeoutMs(value) {
+  if (!value || !/^[1-9]\d*$/.test(value)) return null;
+  const ms = Number(value);
+  return Number.isSafeInteger(ms) ? ms : null;
+}
+var MAX_TIMER_DELAY_MS = 2147483647;
+var TERMINATE_GRACE_MS = 2e3;
+function scheduleTimeout(fn, delayMs) {
+  let remaining = delayMs;
+  let timer;
+  const scheduleNext = () => {
+    const chunk = Math.min(remaining, MAX_TIMER_DELAY_MS);
+    timer = setTimeout(() => {
+      remaining -= chunk;
+      if (remaining > 0) scheduleNext();
+      else fn();
+    }, chunk);
+  };
+  scheduleNext();
+  return () => {
+    if (timer) clearTimeout(timer);
+  };
+}
 function claudeCliRunnerWith(spawnImpl) {
   return (input) => new Promise((resolve) => {
+    if (input.signal?.aborted) {
+      resolve({ ok: false, kind: "cancelled", reason: "claude reconcile cancelled" });
+      return;
+    }
     const byok = !!input.byokKey;
     const args = buildClaudeArgs({ model: input.model ?? DEFAULT_MODEL, byok, mode: input.mode, oneShot: input.oneShot });
     const env = buildClaudeEnv(process.env, { byokKey: input.byokKey });
-    const child = spawnImpl("claude", args, { cwd: input.repoRoot, env, stdio: ["pipe", "pipe", "pipe"] });
+    let child;
+    try {
+      child = spawnImpl("claude", args, { cwd: input.repoRoot, env, stdio: ["pipe", "pipe", "pipe"] });
+    } catch {
+      resolve({ ok: false, reason: "claude CLI not found or failed to spawn" });
+      return;
+    }
     let out = "";
     let err = "";
+    let settled = false;
+    let closed = false;
+    let interruption = null;
+    let cancelRunTimeout;
+    let cancelKillTimeout;
+    const onAbort = () => terminate("cancelled");
+    const cleanup = () => {
+      cancelRunTimeout?.();
+      cancelKillTimeout?.();
+      input.signal?.removeEventListener("abort", onAbort);
+    };
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(result);
+    };
+    const terminate = (kind) => {
+      if (settled || closed || interruption) return;
+      interruption = kind;
+      try {
+        child.kill("SIGTERM");
+      } catch {
+      }
+      if (!closed) {
+        cancelKillTimeout = scheduleTimeout(() => {
+          if (closed) return;
+          try {
+            child.kill("SIGKILL");
+          } catch {
+          }
+        }, TERMINATE_GRACE_MS);
+      }
+    };
     child.stdout.on("data", (c) => {
       out += c.toString();
     });
     child.stderr.on("data", (c) => {
       err = (err + c.toString()).slice(-4096);
     });
-    child.on("error", () => resolve({ ok: false, reason: withStderr("claude CLI not found or failed to spawn", err) }));
-    child.on("close", () => {
-      const envlp = parseClaudeEnvelope(out);
-      if (!envlp || envlp.isError) return resolve({ ok: false, reason: withStderr(`claude -p error: ${envlp ? "error subtype" : "unparseable output"}`, err) });
-      const proposal = extractProposal(envlp.text);
-      if (!proposal) return resolve({ ok: false, reason: withStderr(withResultTail("no valid proposal in result", envlp.text), err) });
-      resolve({ ok: true, proposal, costUsd: envlp.costUsd, raw: out });
+    child.on("error", () => {
+      if (!interruption) finish({ ok: false, reason: withStderr("claude CLI not found or failed to spawn", err) });
     });
-    child.stdin.on("error", () => resolve({ ok: false, reason: withStderr("claude exited before reading the prompt (stdin error)", err) }));
+    child.on("close", () => {
+      closed = true;
+      if (interruption) {
+        const reason = interruption === "cancelled" ? "claude reconcile cancelled" : "claude reconcile timed out";
+        finish({ ok: false, kind: interruption, reason: withStderr(reason, err) });
+        return;
+      }
+      const envlp = parseClaudeEnvelope(out);
+      if (!envlp || envlp.isError) return finish({ ok: false, reason: withStderr(`claude -p error: ${envlp ? "error subtype" : "unparseable output"}`, err) });
+      const proposal = extractProposal(envlp.text);
+      if (!proposal) return finish({ ok: false, reason: withStderr(withResultTail("no valid proposal in result", envlp.text), err) });
+      finish({ ok: true, proposal, costUsd: envlp.costUsd, raw: out });
+    });
+    child.stdin.on("error", () => {
+      if (!interruption) finish({ ok: false, reason: withStderr("claude exited before reading the prompt (stdin error)", err) });
+    });
+    input.signal?.addEventListener("abort", onAbort, { once: true });
+    const timeoutMs = parseReconcileTimeoutMs(process.env.VISFLOW_RECONCILE_TIMEOUT_MS);
+    if (timeoutMs !== null) cancelRunTimeout = scheduleTimeout(() => terminate("timeout"), timeoutMs);
     child.stdin.write(input.prompt);
     child.stdin.end();
   });
@@ -4967,16 +5457,16 @@ function claudeCliRunnerWith(spawnImpl) {
 var claudeCliRunner = claudeCliRunnerWith(spawn);
 
 // src/license/state.ts
-import { mkdirSync as mkdirSync7, readFileSync as readFileSync7, writeFileSync as writeFileSync5, renameSync as renameSync5 } from "node:fs";
+import { mkdirSync as mkdirSync7, readFileSync as readFileSync8, writeFileSync as writeFileSync5, renameSync as renameSync5 } from "node:fs";
 import { homedir } from "node:os";
-import { join as join11 } from "node:path";
+import { join as join12 } from "node:path";
 function licenseDir(env) {
-  return env.VISFLOW_LICENSE_DIR ?? join11(homedir(), ".config", "visflow");
+  return env.VISFLOW_LICENSE_DIR ?? join12(homedir(), ".config", "visflow");
 }
-var statePath = (env) => join11(licenseDir(env), "license.json");
+var statePath = (env) => join12(licenseDir(env), "license.json");
 function readLicenseState(env) {
   try {
-    const parsed = JSON.parse(readFileSync7(statePath(env), "utf8"));
+    const parsed = JSON.parse(readFileSync8(statePath(env), "utf8"));
     return parsed && typeof parsed === "object" ? parsed : null;
   } catch {
     return null;
@@ -5107,12 +5597,12 @@ async function checkEntitlement(env, deps = {}) {
 
 // src/reconcile/hash-state.ts
 import { createHash } from "node:crypto";
-import { readFileSync as readFileSync8 } from "node:fs";
-import { join as join12 } from "node:path";
+import { readFileSync as readFileSync9 } from "node:fs";
+import { join as join13 } from "node:path";
 var STATE_FILE = ".reconcile-hashes.json";
 function readHashState(repoRoot) {
   try {
-    const d = JSON.parse(readFileSync8(join12(repoRoot, ".visflow", STATE_FILE), "utf8"));
+    const d = JSON.parse(readFileSync9(join13(repoRoot, ".visflow", STATE_FILE), "utf8"));
     if (!d || typeof d !== "object" || Array.isArray(d)) return {};
     const out = {};
     for (const [k, v] of Object.entries(d)) if (typeof v === "string") out[k] = v;
@@ -5126,7 +5616,7 @@ function hashContent(content) {
 }
 function hashFileContent(repoRoot, rel) {
   try {
-    return hashContent(readFileSync8(join12(repoRoot, rel)));
+    return hashContent(readFileSync9(join13(repoRoot, rel)));
   } catch {
     return null;
   }
@@ -5138,202 +5628,337 @@ function updateHashState(repoRoot, files, preset = {}) {
     if (h === null) delete state[rel];
     else state[rel] = h;
   }
-  writeJsonAtomic(join12(repoRoot, ".visflow", STATE_FILE), state);
+  writeJsonAtomic(join13(repoRoot, ".visflow", STATE_FILE), state);
 }
 
 // src/reconcile/index.ts
-import { join as join13, sep as sep2 } from "node:path";
-import { existsSync as existsSync6, readFileSync as readFileSync9, realpathSync as realpathSync2 } from "node:fs";
+import { join as join14, sep as sep2 } from "node:path";
+import { existsSync as existsSync7, readFileSync as readFileSync10, realpathSync as realpathSync2 } from "node:fs";
 var INLINE_CAP_BYTES = 48 * 1024;
 var hashGuardFiles = (changedFiles) => [".visflow/graph.json", ...changedFiles];
 async function runReconcile(repoRoot, opts = {}) {
+  const guard = acquireRunGuard(repoRoot);
+  if (!guard.acquired || !guard.token) return { applied: false, reason: "already-running" };
+  const controller = new AbortController();
+  const forwardAbort = () => controller.abort(opts.signal?.reason ?? "cancelled");
+  if (opts.signal?.aborted) forwardAbort();
+  else opts.signal?.addEventListener("abort", forwardAbort, { once: true });
+  const stopWatchingCancellation = watchReconcileCancellation(repoRoot, guard.token, controller);
+  let completedCleanly = false;
+  let finalResult = { applied: false, reason: "reconcile cancelled" };
+  try {
+    let force = opts.force;
+    let anyApplied = false;
+    for (; ; ) {
+      if (controller.signal.aborted) {
+        updateMeta(repoRoot, (cur) => ({
+          ...cur,
+          version: 1,
+          lastResult: "cancelled",
+          lastReason: "reconcile cancelled"
+        }));
+        finalResult = { applied: false, reason: "reconcile cancelled" };
+        break;
+      }
+      const pass = await runReconcilePass(repoRoot, {
+        ...opts,
+        force,
+        signal: controller.signal
+      });
+      anyApplied ||= pass.applied;
+      if (pass.queue === "restored") {
+        finalResult = { applied: false, reason: pass.reason };
+        break;
+      }
+      if (controller.signal.aborted) {
+        updateMeta(repoRoot, (cur) => ({
+          ...cur,
+          version: 1,
+          lastResult: "cancelled",
+          lastReason: "reconcile cancelled"
+        }));
+        finalResult = { applied: false, reason: "reconcile cancelled" };
+        break;
+      }
+      if (!hasPendingReconcileWork(repoRoot)) {
+        finalResult = anyApplied ? pass.applied ? pass : { applied: true, reason: "applied" } : pass;
+        completedCleanly = true;
+        break;
+      }
+      force = false;
+    }
+  } finally {
+    stopWatchingCancellation();
+    opts.signal?.removeEventListener("abort", forwardAbort);
+    guard.release();
+    clearOwnedCancellationRequest(repoRoot, guard.token);
+  }
+  if (completedCleanly && !controller.signal.aborted && hasPendingReconcileWork(repoRoot)) {
+    const successor = await runReconcile(repoRoot, {
+      ...opts,
+      force: false,
+      signal: opts.signal
+    });
+    if (successor.reason === "already-running") return finalResult;
+    const successorFailed = !successor.applied && !successor.reason.startsWith("no-op") && !successor.reason.startsWith("gate:");
+    if (successorFailed) return successor;
+    return finalResult.applied ? finalResult : successor;
+  }
+  return finalResult;
+}
+function hasPendingReconcileWork(repoRoot) {
+  const dir = join14(repoRoot, ".visflow");
+  return existsSync7(join14(dir, "events.log")) || existsSync7(join14(dir, "feedback-targets.log")) || hasRecoverableEventDrains(repoRoot) || hasRecoverableTargetDrains(repoRoot);
+}
+async function runReconcilePass(repoRoot, opts) {
   const now = opts.now ?? (() => (/* @__PURE__ */ new Date()).toISOString());
   const llm = opts.llm ?? claudeCliRunner;
-  const guard = acquireRunGuard(repoRoot);
-  if (!guard.acquired) return { applied: false, reason: "already-running" };
-  try {
-    const swept = sweepAbandonedDrains(repoRoot);
-    const drained = drainEvents(repoRoot);
-    const events = drained.events;
-    const targets = drainTargets(repoRoot);
-    const hasTargets = targets.nodeIds.length > 0 || targets.files.length > 0;
-    const notes = [swept.note, drained.note].filter(Boolean).join(" \xB7 ") || void 0;
-    const note = notes ? ` \xB7 ${notes}` : "";
-    const stamp = (m) => updateMeta(repoRoot, (cur) => ({ ...cur, version: 1, ...m }));
-    if (!shouldReconcile({ events, force: opts.force }) && !hasTargets) {
-      const gcReason = await ghostGcOnly(repoRoot, stamp, now);
-      drained.commit();
-      targets.commit();
-      if (gcReason) return { applied: true, reason: gcReason };
-      return { applied: false, reason: `gate: skipped${note}` };
-    }
-    const fail = (m, reason, failOpts) => {
-      const abandoned = drained.restore(failOpts);
-      targets.restore();
-      const suffix = abandoned > 0 ? ` \xB7 ${abandoned} event(s) abandoned after ${MAX_EVENT_RETRIES} attempts` : "";
-      stamp({ ...m, lastReason: `${m.lastReason ?? ""}${suffix}${note}` || void 0 });
-      return { applied: false, reason };
-    };
-    stamp({ lastResult: "running", lastReason: void 0, startedAt: now(), scope: void 0 });
-    const loaded = loadGraph(repoRoot);
-    if (!loaded.ok) return fail({ lastResult: "error", lastReason: `graph unavailable: ${loaded.error.kind}` }, "graph unavailable");
-    const diskGraph = loaded.graph;
-    const graphHashAtLoad = hashContent(loaded.raw);
-    const prevFingerprint = JSON.stringify(diskGraph);
-    const gc = applyGhostGc(diskGraph, repoRoot);
-    const prevGraph = gc ? gc.graph : diskGraph;
-    const ghostNote = gc?.note;
-    const decisions = readDecisions(repoRoot);
-    const orphanIds = findOrphans(prevGraph.nodes.map((n) => n.id), decisions);
-    const orphanDecisions = {
-      version: 1,
-      decisions: Object.fromEntries(orphanIds.filter((id) => decisions.decisions[id]).map((id) => [id, decisions.decisions[id]]))
-    };
-    const mode = opts.force ? "full" : "scoped";
-    const targetEvents = [
-      ...targets.nodeIds.flatMap((id) => (prevGraph.nodes.find((n) => n.id === id)?.files ?? []).map((f) => ({ file: f, tool: "feedback", ts: now() }))),
-      ...targets.files.map((f) => ({ file: f, tool: "feedback", ts: now() }))
-    ];
-    const scope = mode === "scoped" ? resolveAffectedNodes([...events, ...targetEvents], prevGraph, repoRoot) : void 0;
-    const projection = mode === "scoped" ? "projected" : "full";
-    if (mode === "scoped" && scope && !gc && !hasTargets && scope.newFiles.length === 0 && orphanIds.length === 0 && scope.changedFiles.length > 0) {
-      const hashState = readHashState(repoRoot);
-      const scopeIds = /* @__PURE__ */ new Set([...scope.affectedNodeIds, ...scope.neighborNodeIds]);
-      const allPresent = prevGraph.nodes.filter((n) => scopeIds.has(n.id)).flatMap((n) => n.files).every((f) => existsSync6(join13(repoRoot, f)));
-      const unchanged = allPresent && hashGuardFiles(scope.changedFiles).every((f) => {
-        const h = hashFileContent(repoRoot, f);
-        return h !== null && h === hashState[f];
-      });
-      if (unchanged) {
-        drained.commit();
-        targets.commit();
-        stamp({
-          lastResult: "no-op",
-          lastSync: now(),
-          lastReason: ["hash-skip: changed files byte-identical to last reconcile (graph-bound, all scope files present)", notes].filter(Boolean).join(" \xB7 ") || void 0,
-          cost: { totalUsd: 0 },
-          scope: { mode, promptBytes: 0, changedFiles: scope.changedFiles, affectedNodeIds: scope.affectedNodeIds, neighborCount: scope.neighborNodeIds.length, newFiles: [] }
-        });
-        return { applied: false, reason: "no-op (hash-skip)" };
-      }
-    }
-    let inlineFiles;
-    let inlineSkipped;
-    if (mode === "scoped" && scope && opts.inline !== false) {
-      const scopeIds = /* @__PURE__ */ new Set([...scope.affectedNodeIds, ...scope.neighborNodeIds]);
-      const scopeNodeFiles = prevGraph.nodes.filter((n) => scopeIds.has(n.id)).flatMap((n) => n.files);
-      const demoted = scope.neighborNodeIds.length > NEIGHBOR_FULL_MAX;
-      const neighborFiles = demoted ? [] : [...new Set(prevGraph.nodes.filter((n) => scope.neighborNodeIds.includes(n.id)).flatMap((n) => n.files))];
-      const readable = /* @__PURE__ */ new Set([...scope.changedFiles, ...neighborFiles]);
-      const collected = [];
-      let bytes = 0;
-      const realRoot = realpathSync2(repoRoot);
-      for (const rel of /* @__PURE__ */ new Set([...readable, ...scopeNodeFiles])) {
-        let contents;
-        try {
-          const real = realpathSync2(join13(repoRoot, rel));
-          if (real !== realRoot && !real.startsWith(realRoot + sep2)) {
-            inlineSkipped = "out-of-repo";
-            collected.length = 0;
-            break;
-          }
-          contents = readFileSync9(real, "utf8");
-        } catch {
-          inlineSkipped = "unreadable";
-          collected.length = 0;
-          break;
-        }
-        if (!readable.has(rel)) continue;
-        bytes += Buffer.byteLength(contents, "utf8");
-        if (bytes > INLINE_CAP_BYTES) {
-          inlineSkipped = "cap";
-          collected.length = 0;
-          break;
-        }
-        collected.push({ path: rel, contents });
-      }
-      if (collected.length > 0) inlineFiles = collected;
-    }
-    let excludePaths;
-    if (mode === "scoped" && scope && !inlineFiles) {
-      const realRoot = realpathSync2(repoRoot);
-      const neighborFiles = [...new Set(prevGraph.nodes.filter((n) => scope.neighborNodeIds.includes(n.id)).flatMap((n) => n.files))];
-      const out = [.../* @__PURE__ */ new Set([...scope.changedFiles, ...neighborFiles])].filter((rel) => {
-        try {
-          const real = realpathSync2(join13(repoRoot, rel));
-          return real !== realRoot && !real.startsWith(realRoot + sep2);
-        } catch {
-          return false;
-        }
-      });
-      if (out.length > 0) excludePaths = out;
-    }
-    const prompt = buildReconcilePrompt({ mode, graph: prevGraph, orphanDecisions, orphanIds, scope, projection, inlineFiles, excludePaths });
-    const oneShot = !!inlineFiles;
-    stamp({
-      lastResult: "running",
-      scope: {
-        mode,
-        promptBytes: Buffer.byteLength(prompt, "utf8"),
-        ...mode === "scoped" && scope ? { changedFiles: scope.changedFiles, affectedNodeIds: scope.affectedNodeIds, neighborCount: scope.neighborNodeIds.length, newFiles: scope.newFiles } : {},
-        ...oneShot ? { inline: true } : {},
-        ...inlineSkipped ? { inlineSkipped } : {}
-      }
-    });
-    const result = await llm({ repoRoot, prompt, mode, oneShot });
-    if (!result.ok) return fail({ lastResult: "error", lastReason: result.reason }, result.reason);
-    const merged = applyPatch(prevGraph, {
-      upsert: result.proposal.upsert,
-      remove: result.proposal.remove,
-      groupUpsert: result.proposal.groupUpsert
-    });
-    const sanitized = sanitizeDanglingEdges(merged);
-    const groupSan = sanitizeGroups(prevGraph, sanitized.graph);
-    const gv = validateGraph(groupSan.graph);
-    if (!gv.ok) return fail({ lastResult: "skipped", lastReason: `validateGraph: ${gv.errors[0] ?? "invalid"}` }, "invalid graph");
-    const proposed = gv.graph;
-    const nl = checkNodeLoss(prevGraph, proposed, repoRoot);
-    if (!nl.ok) return fail({ lastResult: "skipped", lastReason: `node-loss: ${nl.lost.join(",")}` }, "node loss");
-    const graphUnchanged = JSON.stringify(proposed) === prevFingerprint;
-    if (graphUnchanged && !result.proposal.decisionMoves.length) {
-      drained.commit();
-      targets.commit();
-      if (scope) updateHashState(repoRoot, hashGuardFiles(scope.changedFiles), { ".visflow/graph.json": graphHashAtLoad });
-      stamp({ lastResult: "no-op", lastSync: now(), lastReason: notes, cost: { totalUsd: result.costUsd ?? void 0 } });
-      return { applied: false, reason: "no-op (graph unchanged)" };
-    }
-    const outcome = await withLock(repoRoot, () => {
-      const recheck = loadGraph(repoRoot);
-      if (!recheck.ok || JSON.stringify(recheck.graph) !== prevFingerprint) return "stale";
-      if (!graphUnchanged) writeJsonAtomic(join13(repoRoot, ".visflow", "graph.json"), proposed);
-      if (result.proposal.decisionMoves.length) {
-        const current = readDecisions(repoRoot);
-        const merged2 = applyMoves(current, result.proposal.decisionMoves, new Set(proposed.nodes.map((n) => n.id)));
-        const dv = validateDecisions(merged2);
-        if (dv.ok) writeJsonAtomic(join13(repoRoot, ".visflow", "decisions.json"), merged2);
-      }
-      return "ok";
-    });
-    if (outcome === "stale") return fail({ lastResult: "skipped", lastReason: "graph changed mid-run" }, "stale graph", { bumpRetry: false });
+  const swept = sweepAbandonedDrains(repoRoot);
+  sweepAbandonedTargetDrains(repoRoot);
+  const drained = drainEvents(repoRoot);
+  const events = drained.events;
+  const targets = drainTargets(repoRoot);
+  const hasTargets = targets.nodeIds.length > 0 || targets.files.length > 0;
+  const notes = [swept.note, drained.note].filter(Boolean).join(" \xB7 ") || void 0;
+  const note = notes ? ` \xB7 ${notes}` : "";
+  const stamp = (m) => updateMeta(repoRoot, (cur) => ({ ...cur, version: 1, ...m }));
+  if (!shouldReconcile({ events, force: opts.force }) && !hasTargets) {
+    const gcReason = await ghostGcOnly(repoRoot, stamp, now);
     drained.commit();
     targets.commit();
-    if (scope) updateHashState(repoRoot, hashGuardFiles(scope.changedFiles));
-    const droppedNote = sanitized.dropped.length ? `applied (dropped ${sanitized.dropped.length} dangling edge(s): ${sanitized.dropped.map((d) => `${d.nodeId}\u2192${d.depId}`).join(", ")})` : void 0;
-    const groupNote = [
-      groupSan.restored.length ? `restored ${groupSan.restored.length} sticky group ref(s): ${groupSan.restored.map((r) => `${r.nodeId}\u2192${r.group}`).join(", ")}` : void 0,
-      groupSan.droppedRefs.length ? `dropped ${groupSan.droppedRefs.length} dangling group ref(s): ${groupSan.droppedRefs.map((d) => `${d.nodeId}\u2192${d.group}`).join(", ")}` : void 0,
-      groupSan.prunedGroups.length ? `pruned ${groupSan.prunedGroups.length} empty group(s): ${groupSan.prunedGroups.join(", ")}` : void 0
-    ].filter(Boolean).join(" \xB7 ") || void 0;
-    stamp({
-      lastResult: "applied",
-      lastSync: now(),
-      lastReason: [droppedNote, groupNote, ghostNote, notes].filter(Boolean).join(" \xB7 ") || void 0,
-      cost: { totalUsd: result.costUsd ?? void 0 }
-    });
-    return { applied: true, reason: "applied" };
-  } finally {
-    guard.release();
+    if (gcReason) return { applied: true, reason: gcReason, queue: "committed" };
+    return { applied: false, reason: `gate: skipped${note}`, queue: "committed" };
   }
+  const fail = (m, reason, failOpts) => {
+    const abandoned = drained.restore(failOpts);
+    targets.restore();
+    const suffix = abandoned > 0 ? ` \xB7 ${abandoned} event(s) abandoned after ${MAX_EVENT_RETRIES} attempts` : "";
+    stamp({ ...m, lastReason: `${m.lastReason ?? ""}${suffix}${note}` || void 0 });
+    return { applied: false, reason, queue: "restored" };
+  };
+  stamp({ lastResult: "running", lastReason: void 0, startedAt: now(), scope: void 0 });
+  const loaded = loadGraph(repoRoot);
+  if (!loaded.ok) return fail({ lastResult: "error", lastReason: `graph unavailable: ${loaded.error.kind}` }, "graph unavailable");
+  const diskGraph = loaded.graph;
+  const graphHashAtLoad = hashContent(loaded.raw);
+  const prevFingerprint = JSON.stringify(diskGraph);
+  const gc = applyGhostGc(diskGraph, repoRoot);
+  const prevGraph = gc ? gc.graph : diskGraph;
+  const ghostNote = gc?.note;
+  const decisions = readDecisions(repoRoot);
+  const orphanIds = findOrphans(prevGraph.nodes.map((n) => n.id), decisions);
+  const orphanDecisions = {
+    version: 1,
+    decisions: Object.fromEntries(orphanIds.filter((id) => decisions.decisions[id]).map((id) => [id, decisions.decisions[id]]))
+  };
+  const mode = opts.force ? "full" : "scoped";
+  const targetEvents = [
+    ...targets.nodeIds.flatMap((id) => (prevGraph.nodes.find((n) => n.id === id)?.files ?? []).map((f) => ({ file: f, tool: "feedback", ts: now() }))),
+    ...targets.files.map((f) => ({ file: f, tool: "feedback", ts: now() }))
+  ];
+  const scope = mode === "scoped" ? resolveAffectedNodes([...events, ...targetEvents], prevGraph, repoRoot) : void 0;
+  const projection = mode === "scoped" ? "projected" : "full";
+  if (mode === "scoped" && scope && !gc && !hasTargets && scope.newFiles.length === 0 && orphanIds.length === 0 && scope.changedFiles.length > 0) {
+    const hashState = readHashState(repoRoot);
+    const scopeIds = /* @__PURE__ */ new Set([...scope.affectedNodeIds, ...scope.neighborNodeIds]);
+    const allPresent = prevGraph.nodes.filter((n) => scopeIds.has(n.id)).flatMap((n) => n.files).every((f) => existsSync7(join14(repoRoot, f)));
+    const unchanged = allPresent && hashGuardFiles(scope.changedFiles).every((f) => {
+      const h = hashFileContent(repoRoot, f);
+      return h !== null && h === hashState[f];
+    });
+    if (unchanged) {
+      drained.commit();
+      targets.commit();
+      stamp({
+        lastResult: "no-op",
+        lastSync: now(),
+        lastReason: ["hash-skip: changed files byte-identical to last reconcile (graph-bound, all scope files present)", notes].filter(Boolean).join(" \xB7 ") || void 0,
+        cost: { totalUsd: 0 },
+        scope: {
+          mode,
+          promptBytes: 0,
+          changedFiles: scope.changedFiles,
+          ownedChangedFiles: scope.ownedChangedFiles,
+          unownedSourceFiles: scope.unownedSourceFiles,
+          ignoredFiles: scope.ignoredFiles,
+          affectedNodeIds: scope.affectedNodeIds,
+          neighborCount: scope.neighborNodeIds.length,
+          newFiles: scope.newFiles
+        }
+      });
+      return { applied: false, reason: "no-op (hash-skip)", queue: "committed" };
+    }
+  }
+  let inlineFiles;
+  let inlineSkipped;
+  if (mode === "scoped" && scope && opts.inline !== false) {
+    const scopeIds = /* @__PURE__ */ new Set([...scope.affectedNodeIds, ...scope.neighborNodeIds]);
+    const candidateContext = scope.unownedSourceFiles.length > 0;
+    const scopeNodeFiles = candidateContext ? [] : prevGraph.nodes.filter((n) => scopeIds.has(n.id)).flatMap((n) => n.files);
+    const demoted = scope.neighborNodeIds.length > NEIGHBOR_FULL_MAX;
+    const neighborFiles = demoted || candidateContext ? [] : [...new Set(prevGraph.nodes.filter((n) => scope.neighborNodeIds.includes(n.id)).flatMap((n) => n.files))];
+    const consideredChanged = candidateContext ? [...scope.ownedChangedFiles, ...scope.unownedSourceFiles] : scope.changedFiles;
+    const readable = /* @__PURE__ */ new Set([...consideredChanged, ...neighborFiles]);
+    const collected = [];
+    let bytes = 0;
+    const realRoot = realpathSync2(repoRoot);
+    for (const rel of /* @__PURE__ */ new Set([...readable, ...scopeNodeFiles])) {
+      let contents;
+      try {
+        const real = realpathSync2(join14(repoRoot, rel));
+        if (real !== realRoot && !real.startsWith(realRoot + sep2)) {
+          inlineSkipped = "out-of-repo";
+          collected.length = 0;
+          break;
+        }
+        contents = readFileSync10(real, "utf8");
+      } catch {
+        inlineSkipped = "unreadable";
+        collected.length = 0;
+        break;
+      }
+      if (!readable.has(rel)) continue;
+      bytes += Buffer.byteLength(contents, "utf8");
+      if (bytes > INLINE_CAP_BYTES) {
+        inlineSkipped = "cap";
+        collected.length = 0;
+        break;
+      }
+      collected.push({ path: rel, contents });
+    }
+    if (collected.length > 0) inlineFiles = collected;
+  }
+  let excludePaths;
+  if (mode === "scoped" && scope && !inlineFiles) {
+    const realRoot = realpathSync2(repoRoot);
+    const neighborFiles = [...new Set(prevGraph.nodes.filter((n) => scope.neighborNodeIds.includes(n.id)).flatMap((n) => n.files))];
+    const out = [.../* @__PURE__ */ new Set([...scope.changedFiles, ...neighborFiles])].filter((rel) => {
+      try {
+        const real = realpathSync2(join14(repoRoot, rel));
+        return real !== realRoot && !real.startsWith(realRoot + sep2);
+      } catch {
+        return false;
+      }
+    });
+    if (out.length > 0) excludePaths = out;
+  }
+  const effectiveScope = scope && excludePaths?.length ? {
+    ...scope,
+    unownedSourceFiles: scope.unownedSourceFiles.filter((f) => !excludePaths.includes(f)),
+    newFiles: scope.newFiles.filter((f) => !excludePaths.includes(f))
+  } : scope;
+  const prompt = buildReconcilePrompt({
+    mode,
+    graph: prevGraph,
+    orphanDecisions,
+    orphanIds,
+    scope: effectiveScope,
+    projection,
+    inlineFiles,
+    excludePaths
+  });
+  const oneShot = !!inlineFiles;
+  stamp({
+    lastResult: "running",
+    scope: {
+      mode,
+      promptBytes: Buffer.byteLength(prompt, "utf8"),
+      ...mode === "scoped" && scope ? {
+        changedFiles: scope.changedFiles,
+        ownedChangedFiles: scope.ownedChangedFiles,
+        unownedSourceFiles: scope.unownedSourceFiles,
+        ignoredFiles: scope.ignoredFiles,
+        affectedNodeIds: scope.affectedNodeIds,
+        neighborCount: scope.neighborNodeIds.length,
+        newFiles: scope.newFiles
+      } : {},
+      ...oneShot ? { inline: true } : {},
+      ...inlineSkipped ? { inlineSkipped } : {}
+    }
+  });
+  const result = await llm({ repoRoot, prompt, mode, oneShot, signal: opts.signal });
+  if (!result.ok) {
+    const cancelled = result.kind === "cancelled";
+    return fail(
+      { lastResult: cancelled ? "cancelled" : "error", lastReason: result.reason },
+      result.reason,
+      { bumpRetry: result.kind !== "cancelled" && result.kind !== "timeout" }
+    );
+  }
+  const proposalScope = validateProposalScope({
+    mode,
+    graph: prevGraph,
+    scope: effectiveScope,
+    proposal: result.proposal,
+    orphanIds
+  });
+  if (!proposalScope.ok) {
+    const proposalBase = loadGraph(repoRoot);
+    if (!proposalBase.ok || JSON.stringify(proposalBase.graph) !== prevFingerprint) {
+      return fail(
+        { lastResult: "skipped", lastReason: "graph changed mid-run" },
+        "stale graph",
+        { bumpRetry: false }
+      );
+    }
+    const first = proposalScope.violations[0];
+    return fail(
+      {
+        lastResult: "skipped",
+        lastReason: `proposal-scope ${first.code}: ${first.message}`
+      },
+      "proposal out of scope"
+    );
+  }
+  const merged = applyPatch(prevGraph, {
+    upsert: result.proposal.upsert,
+    remove: result.proposal.remove,
+    groupUpsert: result.proposal.groupUpsert
+  });
+  const sanitized = sanitizeDanglingEdges(merged);
+  const groupSan = sanitizeGroups(prevGraph, sanitized.graph);
+  const gv = validateGraph(groupSan.graph);
+  if (!gv.ok) return fail({ lastResult: "skipped", lastReason: `validateGraph: ${gv.errors[0] ?? "invalid"}` }, "invalid graph");
+  const proposed = gv.graph;
+  const nl = checkNodeLoss(prevGraph, proposed, repoRoot);
+  if (!nl.ok) return fail({ lastResult: "skipped", lastReason: `node-loss: ${nl.lost.join(",")}` }, "node loss");
+  const graphUnchanged = JSON.stringify(proposed) === prevFingerprint;
+  if (graphUnchanged && !result.proposal.decisionMoves.length) {
+    drained.commit();
+    targets.commit();
+    if (scope) updateHashState(repoRoot, hashGuardFiles(scope.changedFiles), { ".visflow/graph.json": graphHashAtLoad });
+    stamp({ lastResult: "no-op", lastSync: now(), lastReason: notes, cost: { totalUsd: result.costUsd ?? void 0 } });
+    return { applied: false, reason: "no-op (graph unchanged)", queue: "committed" };
+  }
+  const outcome = await withLock(repoRoot, () => {
+    const recheck = loadGraph(repoRoot);
+    if (!recheck.ok || JSON.stringify(recheck.graph) !== prevFingerprint) return "stale";
+    if (!graphUnchanged) writeJsonAtomic(join14(repoRoot, ".visflow", "graph.json"), proposed);
+    if (result.proposal.decisionMoves.length) {
+      const current = readDecisions(repoRoot);
+      const merged2 = applyMoves(current, result.proposal.decisionMoves, new Set(proposed.nodes.map((n) => n.id)));
+      const dv = validateDecisions(merged2);
+      if (dv.ok) writeJsonAtomic(join14(repoRoot, ".visflow", "decisions.json"), merged2);
+    }
+    return "ok";
+  });
+  if (outcome === "stale") return fail({ lastResult: "skipped", lastReason: "graph changed mid-run" }, "stale graph", { bumpRetry: false });
+  drained.commit();
+  targets.commit();
+  if (scope) updateHashState(repoRoot, hashGuardFiles(scope.changedFiles));
+  const droppedNote = sanitized.dropped.length ? `applied (dropped ${sanitized.dropped.length} dangling edge(s): ${sanitized.dropped.map((d) => `${d.nodeId}\u2192${d.depId}`).join(", ")})` : void 0;
+  const groupNote = [
+    groupSan.restored.length ? `restored ${groupSan.restored.length} sticky group ref(s): ${groupSan.restored.map((r) => `${r.nodeId}\u2192${r.group}`).join(", ")}` : void 0,
+    groupSan.droppedRefs.length ? `dropped ${groupSan.droppedRefs.length} dangling group ref(s): ${groupSan.droppedRefs.map((d) => `${d.nodeId}\u2192${d.group}`).join(", ")}` : void 0,
+    groupSan.prunedGroups.length ? `pruned ${groupSan.prunedGroups.length} empty group(s): ${groupSan.prunedGroups.join(", ")}` : void 0
+  ].filter(Boolean).join(" \xB7 ") || void 0;
+  stamp({
+    lastResult: "applied",
+    lastSync: now(),
+    lastReason: [droppedNote, groupNote, ghostNote, notes].filter(Boolean).join(" \xB7 ") || void 0,
+    cost: { totalUsd: result.costUsd ?? void 0 }
+  });
+  return { applied: true, reason: "applied", queue: "committed" };
 }
 function applyMoves(file, moves, validIds) {
   const decisions = { ...file.decisions };
@@ -5370,7 +5995,7 @@ async function ghostGcOnly(repoRoot, stamp, now) {
   const outcome = await withLock(repoRoot, () => {
     const recheck = loadGraph(repoRoot);
     if (!recheck.ok || JSON.stringify(recheck.graph) !== fingerprint) return "stale";
-    writeJsonAtomic(join13(repoRoot, ".visflow", "graph.json"), gc.graph);
+    writeJsonAtomic(join14(repoRoot, ".visflow", "graph.json"), gc.graph);
     return "ok";
   });
   if (outcome === "stale") return null;
@@ -5394,7 +6019,7 @@ async function main() {
     stampCrash(repoRoot, e);
     process.exit(1);
   });
-  if (existsSync6(join13(repoRoot, ".visflow", "graph.json"))) {
+  if (existsSync7(join14(repoRoot, ".visflow", "graph.json"))) {
     const ent = await checkEntitlement(process.env);
     if (!ent.allowed) {
       console.error(`visflow reconcile: ${ent.refusal ?? "not licensed"}`);

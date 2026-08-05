@@ -21234,6 +21234,24 @@ import { join as join3 } from "node:path";
 
 // src/core/stale-pid-file.ts
 import { readFileSync as readFileSync2, statSync, renameSync as renameSync2, rmSync, utimesSync } from "node:fs";
+function readPidFileOwner(path) {
+  try {
+    const raw = readFileSync2(path, "utf8");
+    const trimmed = raw.trim();
+    if (/^\d+$/.test(trimmed)) {
+      const pid = Number(trimmed);
+      return Number.isInteger(pid) && pid > 0 ? { pid, raw } : null;
+    }
+    const parsed = JSON.parse(trimmed);
+    if (!parsed || typeof parsed !== "object") return null;
+    const owner = parsed;
+    if (!Number.isInteger(owner.pid) || owner.pid <= 0) return null;
+    if (typeof owner.token !== "string" || owner.token.length === 0) return null;
+    return { pid: owner.pid, token: owner.token, raw };
+  } catch {
+    return null;
+  }
+}
 function isPidAlive(pid) {
   try {
     process.kill(pid, 0);
@@ -21245,9 +21263,9 @@ function isPidAlive(pid) {
 function isStalePidFile(path, ttlMs) {
   try {
     if (Date.now() - statSync(path).mtimeMs > ttlMs) return true;
-    const pid = Number.parseInt(readFileSync2(path, "utf8"), 10);
-    if (!Number.isInteger(pid) || pid <= 0) return false;
-    return !isPidAlive(pid);
+    const owner = readPidFileOwner(path);
+    if (!owner) return false;
+    return !isPidAlive(owner.pid);
   } catch {
     return false;
   }
@@ -21265,22 +21283,21 @@ function stealPidFile(path) {
   }
   return true;
 }
-function releaseOwnedPidFile(path) {
+function releaseOwnedPidFile(path, expectedRaw = `${process.pid}`) {
   try {
-    if (readFileSync2(path, "utf8") === `${process.pid}`) rmSync(path, { force: true });
+    if (readFileSync2(path, "utf8") === expectedRaw) rmSync(path, { force: true });
   } catch {
   }
 }
 
 // src/core/lock.ts
 var sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-async function withLock(repoRoot2, fn, opts = {}) {
+async function withStateLock(stateDir, fn, opts = {}) {
   const retries = opts.retries ?? 100;
   const delayMs = opts.delayMs ?? 20;
   const staleMs = opts.staleMs ?? 6e4;
-  const dir = join3(repoRoot2, ".visflow");
-  const lockPath = join3(dir, ".lock");
-  mkdirSync2(dir, { recursive: true });
+  const lockPath = join3(stateDir, ".lock");
+  mkdirSync2(stateDir, { recursive: true });
   for (let attempt = 0; ; attempt++) {
     try {
       writeFileSync2(lockPath, `${process.pid}`, { flag: "wx" });
@@ -21296,6 +21313,9 @@ async function withLock(repoRoot2, fn, opts = {}) {
   } finally {
     releaseOwnedPidFile(lockPath);
   }
+}
+function withLock(repoRoot2, fn, opts = {}) {
+  return withStateLock(join3(repoRoot2, ".visflow"), fn, opts);
 }
 
 // src/schema/decisions-schema.ts
@@ -21377,7 +21397,7 @@ function appendFeedback(repoRoot2, rec) {
 }
 
 // src/core/feedback-targets.ts
-import { appendFileSync as appendFileSync2, existsSync, mkdirSync as mkdirSync4, readFileSync as readFileSync5, renameSync as renameSync3, rmSync as rmSync2 } from "node:fs";
+import { appendFileSync as appendFileSync2, existsSync, mkdirSync as mkdirSync4, readFileSync as readFileSync5, readdirSync, renameSync as renameSync3, rmSync as rmSync2 } from "node:fs";
 import { join as join6 } from "node:path";
 function targetsPath(repoRoot2) {
   return join6(repoRoot2, ".visflow", "feedback-targets.log");

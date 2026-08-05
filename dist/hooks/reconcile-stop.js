@@ -24,6 +24,24 @@ import { join } from "node:path";
 
 // src/core/stale-pid-file.ts
 import { readFileSync, statSync, renameSync, rmSync, utimesSync } from "node:fs";
+function readPidFileOwner(path) {
+  try {
+    const raw = readFileSync(path, "utf8");
+    const trimmed = raw.trim();
+    if (/^\d+$/.test(trimmed)) {
+      const pid = Number(trimmed);
+      return Number.isInteger(pid) && pid > 0 ? { pid, raw } : null;
+    }
+    const parsed = JSON.parse(trimmed);
+    if (!parsed || typeof parsed !== "object") return null;
+    const owner = parsed;
+    if (!Number.isInteger(owner.pid) || owner.pid <= 0) return null;
+    if (typeof owner.token !== "string" || owner.token.length === 0) return null;
+    return { pid: owner.pid, token: owner.token, raw };
+  } catch {
+    return null;
+  }
+}
 function isPidAlive(pid) {
   try {
     process.kill(pid, 0);
@@ -35,9 +53,9 @@ function isPidAlive(pid) {
 function isStalePidFile(path, ttlMs) {
   try {
     if (Date.now() - statSync(path).mtimeMs > ttlMs) return true;
-    const pid = Number.parseInt(readFileSync(path, "utf8"), 10);
-    if (!Number.isInteger(pid) || pid <= 0) return false;
-    return !isPidAlive(pid);
+    const owner = readPidFileOwner(path);
+    if (!owner) return false;
+    return !isPidAlive(owner.pid);
   } catch {
     return false;
   }
@@ -108,9 +126,22 @@ function drainEvents(repoRoot) {
     }
   };
 }
+function hasRecoverableEventDrains(repoRoot) {
+  const dir = join(repoRoot, ".visflow");
+  let entries;
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return false;
+  }
+  return entries.some((name) => {
+    const m = /^events\.log\.draining-(\d+)-\d+$/.exec(name);
+    return !!m && !isPidAlive(Number.parseInt(m[1], 10));
+  });
+}
 
 // src/core/feedback-targets.ts
-import { appendFileSync as appendFileSync2, existsSync as existsSync2, mkdirSync as mkdirSync2, readFileSync as readFileSync3, renameSync as renameSync3, rmSync as rmSync3 } from "node:fs";
+import { appendFileSync as appendFileSync2, existsSync as existsSync2, mkdirSync as mkdirSync2, readFileSync as readFileSync3, readdirSync as readdirSync2, renameSync as renameSync3, rmSync as rmSync3 } from "node:fs";
 import { join as join2 } from "node:path";
 function targetsPath(repoRoot) {
   return join2(repoRoot, ".visflow", "feedback-targets.log");
@@ -135,6 +166,19 @@ function readTargets(repoRoot) {
   } catch {
     return { nodeIds: [], files: [] };
   }
+}
+function hasRecoverableTargetDrains(repoRoot) {
+  const dir = join2(repoRoot, ".visflow");
+  let entries;
+  try {
+    entries = readdirSync2(dir);
+  } catch {
+    return false;
+  }
+  return entries.some((name) => {
+    const m = /^feedback-targets\.log\.draining-(\d+)-\d+$/.exec(name);
+    return !!m && !isPidAlive(Number.parseInt(m[1], 10));
+  });
 }
 
 // src/core/run-guard.ts
@@ -312,13 +356,25 @@ function handleStop(payloadRaw, env, deps) {
   const events = deps.readEvents(cwd);
   const targets = (deps.readTargets ?? readTargets)(cwd);
   const hasTargets = targets.nodeIds.length > 0 || targets.files.length > 0;
-  if (!shouldReconcile({ events }) && !hasTargets) {
+  const recoverableEvents = hasRecoverableEventDrains(cwd);
+  const recoverableTargets = hasRecoverableTargetDrains(cwd);
+  const hasRecovery = recoverableEvents || recoverableTargets;
+  const actionable = shouldReconcile({ events }) || hasTargets || hasRecovery;
+  if ((events.length > 0 || hasTargets || hasRecovery) && liveRunGuard(cwd)) {
+    const ts = (deps.now ?? (() => (/* @__PURE__ */ new Date()).toISOString()))();
+    const targetCount = targets.nodeIds.length + targets.files.length;
+    const details = [
+      events.length > 0 ? `${events.length} event(s)` : void 0,
+      targetCount > 0 ? `${targetCount} target(s)` : void 0,
+      recoverableEvents ? "recoverable event snapshot(s)" : void 0,
+      recoverableTargets ? "recoverable target snapshot(s)" : void 0
+    ].filter(Boolean).join(", ");
+    writeSkip(cwd, ts, `pass running (${details} left queued)`);
+    return { spawned: false, reason: "gate: skipped (pass running; queue left)" };
+  }
+  if (!actionable) {
     if (events.length > 0) {
       const ts = (deps.now ?? (() => (/* @__PURE__ */ new Date()).toISOString()))();
-      if (liveRunGuard(cwd)) {
-        writeSkip(cwd, ts, `pass running (${events.length} event(s) left queued)`);
-        return { spawned: false, reason: "gate: skipped (pass running; queue left)" };
-      }
       try {
         deps.drainEvents(cwd).commit();
       } catch {
