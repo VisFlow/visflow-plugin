@@ -2,7 +2,7 @@
   "name": "visflow",
   "displayName": "VisFlow",
   "description": "A living, annotated architecture map for AI-built projects.",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "author": { "name": "Ben Xu & Alex Xu" },
   "homepage": "https://github.com/bxu134/visflow-plugin",
   "keywords": ["architecture", "diagram", "map", "visualization"],
