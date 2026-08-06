@@ -1,14 +1,14 @@
 {
   "name": "visflow",
   "description": "A living, annotated architecture map for AI-built projects.",
-  "owner": { "name": "Ben Xu & Alex Xu", "url": "https://github.com/bxu134" },
+  "owner": { "name": "Ben Xu & Alex Xu", "url": "https://github.com/visflow" },
   "plugins": [
     {
       "name": "visflow",
       "source": "./",
       "description": "A living, annotated architecture map for AI-built projects — the map updates itself while Claude edits your code.",
       "author": { "name": "Ben Xu & Alex Xu" },
-      "homepage": "https://github.com/bxu134/visflow-plugin",
+      "homepage": "https://github.com/visflow/visflow-plugin",
       "license": "SEE LICENSE IN LICENSE",
       "keywords": ["architecture", "diagram", "map", "visualization"]
     }
