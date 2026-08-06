@@ -39,15 +39,20 @@ under the terms they shipped with.
 
 From a parent directory, `/visflow:workspace` connects two or more repositories that already have
 VisFlow maps. The repositories and their map/decision files remain separate; the workspace adds a
-portable membership manifest and manual cross-repository relationships. This release does not
-initialize missing member maps or automatically discover/reconcile cross-repository links.
+portable membership manifest and reviewed cross-repository relationships. Boundary matches are
+discovered automatically, new inferred links require approval, approved links are maintained on
+workspace sync, and manual links are never changed automatically. This release does not initialize
+missing member maps.
 
 The equivalent CLI flow is:
 
 ```bash
 visflow workspace connect ./web ./api --label "Product"
-visflow workspace link --from web/api-client --to api/http-api
+visflow workspace discover
+visflow workspace candidates
+visflow workspace approve <candidate-id>
 visflow workspace validate
+visflow workspace sync --links-only
 visflow workspace open
 ```
 

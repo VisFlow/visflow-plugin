@@ -5,12 +5,6 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
-// src/hooks/reconcile-stop.ts
-import { spawn } from "node:child_process";
-import { fileURLToPath as fileURLToPath2 } from "node:url";
-import { dirname as dirname4, join as join12 } from "node:path";
-import { readFileSync as readFileSync11, existsSync as existsSync6 } from "node:fs";
-
 // src/core/is-main.ts
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -23,286 +17,69 @@ function isMain(importMetaUrl) {
   }
 }
 
-// src/core/events-log.ts
-import { appendFileSync, mkdirSync, readFileSync as readFileSync2, renameSync as renameSync2, rmSync as rmSync2, existsSync, readdirSync } from "node:fs";
-import { join } from "node:path";
-
-// src/core/stale-pid-file.ts
-import { readFileSync, statSync, renameSync, rmSync, utimesSync } from "node:fs";
-function readPidFileOwner(path) {
-  try {
-    const raw = readFileSync(path, "utf8");
-    const trimmed = raw.trim();
-    if (/^\d+$/.test(trimmed)) {
-      const pid = Number(trimmed);
-      return Number.isInteger(pid) && pid > 0 ? { pid, raw } : null;
-    }
-    const parsed = JSON.parse(trimmed);
-    if (!parsed || typeof parsed !== "object") return null;
-    const owner = parsed;
-    if (!Number.isInteger(owner.pid) || owner.pid <= 0) return null;
-    if (typeof owner.token !== "string" || owner.token.length === 0) return null;
-    return { pid: owner.pid, token: owner.token, raw };
-  } catch {
-    return null;
-  }
-}
-function isPidAlive(pid) {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (e) {
-    return e.code !== "ESRCH";
-  }
-}
-function isStalePidFile(path, ttlMs) {
-  try {
-    if (Date.now() - statSync(path).mtimeMs > ttlMs) return true;
-    const owner = readPidFileOwner(path);
-    if (!owner) return false;
-    return !isPidAlive(owner.pid);
-  } catch {
-    return false;
-  }
-}
-
-// src/core/events-log.ts
-var MAX_EVENT_RETRIES = 3;
-function eventsLogPath(repoRoot) {
-  return join(repoRoot, ".visflow", "events.log");
-}
-function parseEvents(raw) {
-  const out = [];
-  for (const line of raw.split("\n")) {
-    if (!line.trim()) continue;
-    try {
-      const ev = JSON.parse(line);
-      if (ev && typeof ev.file === "string") out.push(ev);
-    } catch {
-    }
-  }
-  return out;
-}
-function appendEvent(repoRoot, ev) {
-  mkdirSync(join(repoRoot, ".visflow"), { recursive: true });
-  appendFileSync(eventsLogPath(repoRoot), JSON.stringify(ev) + "\n");
-}
-function readEvents(repoRoot) {
-  try {
-    return parseEvents(readFileSync2(eventsLogPath(repoRoot), "utf8"));
-  } catch {
-    return [];
-  }
-}
-function drainEvents(repoRoot) {
-  const path = eventsLogPath(repoRoot);
-  if (!existsSync(path)) return { events: [], commit: () => {
-  }, restore: () => 0 };
-  const snapshot = `${path}.draining-${process.pid}-${Date.now()}`;
-  renameSync2(path, snapshot);
-  let events = [];
-  let note;
-  try {
-    events = parseEvents(readFileSync2(snapshot, "utf8"));
-  } catch {
-    note = "events snapshot unreadable; contents discarded";
-  }
-  return {
-    events,
-    note,
-    commit: () => rmSync2(snapshot, { force: true }),
-    restore: (opts) => {
-      const bump = opts?.bumpRetry ?? true;
-      let abandoned = 0;
-      for (const ev of events) {
-        if (!bump) {
-          appendEvent(repoRoot, ev);
-          continue;
-        }
-        const retry = (ev.retry ?? 0) + 1;
-        if (retry >= MAX_EVENT_RETRIES) {
-          abandoned++;
-          continue;
-        }
-        appendEvent(repoRoot, { ...ev, retry });
-      }
-      rmSync2(snapshot, { force: true });
-      return abandoned;
-    }
-  };
-}
-function hasRecoverableEventDrains(repoRoot) {
-  const dir = join(repoRoot, ".visflow");
-  let entries;
-  try {
-    entries = readdirSync(dir);
-  } catch {
-    return false;
-  }
-  return entries.some((name) => {
-    const m = /^events\.log\.draining-(\d+)-\d+$/.exec(name);
-    return !!m && !isPidAlive(Number.parseInt(m[1], 10));
-  });
-}
-
-// src/core/feedback-targets.ts
-import { appendFileSync as appendFileSync2, existsSync as existsSync2, mkdirSync as mkdirSync2, readFileSync as readFileSync3, readdirSync as readdirSync2, renameSync as renameSync3, rmSync as rmSync3 } from "node:fs";
-import { join as join2 } from "node:path";
-function targetsPath(repoRoot) {
-  return join2(repoRoot, ".visflow", "feedback-targets.log");
-}
-function parseTargets(raw) {
-  const nodeIds = /* @__PURE__ */ new Set();
-  const files = /* @__PURE__ */ new Set();
-  for (const line of raw.split("\n")) {
-    if (!line.trim()) continue;
-    try {
-      const rec = JSON.parse(line);
-      for (const n of rec.nodes ?? []) if (typeof n === "string") nodeIds.add(n);
-      for (const f of rec.files ?? []) if (typeof f === "string") files.add(f);
-    } catch {
-    }
-  }
-  return { nodeIds: [...nodeIds], files: [...files] };
-}
-function readTargets(repoRoot) {
-  try {
-    return parseTargets(readFileSync3(targetsPath(repoRoot), "utf8"));
-  } catch {
-    return { nodeIds: [], files: [] };
-  }
-}
-function hasRecoverableTargetDrains(repoRoot) {
-  const dir = join2(repoRoot, ".visflow");
-  let entries;
-  try {
-    entries = readdirSync2(dir);
-  } catch {
-    return false;
-  }
-  return entries.some((name) => {
-    const m = /^feedback-targets\.log\.draining-(\d+)-\d+$/.exec(name);
-    return !!m && !isPidAlive(Number.parseInt(m[1], 10));
-  });
-}
-
-// src/core/run-guard.ts
-var GUARD_TTL_MS = 10 * 60 * 1e3;
-
-// src/core/gate.ts
-var CODE_EXT = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|py|ipynb|go|rs|java|rb|php|c|h|cc|cpp|cxx|hh|hpp|hxx|cs|swift|kt|kts|scala|sql|vue|svelte|astro|dart|m|mm|ex|exs|erl|clj|cljs|cljc|hs|ml|mli|lua|r|jl|pl|pm|groovy|gradle|zig|nim|proto|graphql|gql|sh|bash|zsh)$/i;
-function shouldReconcile(input) {
-  if (input.force) return true;
-  return input.events.some((e) => CODE_EXT.test(e.file));
-}
-
-// src/core/meta.ts
-import { readFileSync as readFileSync5, existsSync as existsSync3 } from "node:fs";
-import { join as join5 } from "node:path";
-
-// src/core/atomic.ts
-import { writeFileSync, renameSync as renameSync4, mkdirSync as mkdirSync3 } from "node:fs";
-import { dirname, basename, join as join3 } from "node:path";
-function writeJsonAtomic(targetPath, data) {
-  const dir = dirname(targetPath);
-  mkdirSync3(dir, { recursive: true });
-  const tmp = join3(dir, `.${basename(targetPath)}.tmp-${process.pid}-${Date.now()}`);
-  writeFileSync(tmp, JSON.stringify(data, null, 2) + "\n");
-  renameSync4(tmp, targetPath);
-}
-
-// src/core/lock.ts
-import { writeFileSync as writeFileSync2, mkdirSync as mkdirSync4, readFileSync as readFileSync4, rmSync as rmSync4, statSync as statSync2 } from "node:fs";
-import { dirname as dirname2, join as join4 } from "node:path";
-function withSyncMicroLock(lockPath, fn, opts = {}) {
-  const lockTimeoutMs = opts.lockTimeoutMs ?? 1500;
-  const staleMs = opts.staleMs ?? 1e3;
-  mkdirSync4(dirname2(lockPath), { recursive: true });
-  const deadline = Date.now() + lockTimeoutMs;
-  let locked = false;
-  while (Date.now() < deadline) {
-    try {
-      writeFileSync2(lockPath, `${process.pid}`, { flag: "wx" });
-      locked = true;
-      break;
-    } catch {
-      try {
-        if (Date.now() - statSync2(lockPath).mtimeMs > staleMs) {
-          rmSync4(lockPath, { force: true });
-          continue;
-        }
-      } catch {
-        continue;
-      }
-      const spinUntil = Date.now() + 5;
-      while (Date.now() < spinUntil) {
-      }
-    }
-  }
-  try {
-    return fn();
-  } finally {
-    if (locked) {
-      try {
-        if (readFileSync4(lockPath, "utf8") === `${process.pid}`) rmSync4(lockPath, { force: true });
-      } catch {
-      }
-    }
-  }
-}
-
-// src/core/meta.ts
-function metaPath(repoRoot) {
-  return join5(repoRoot, ".visflow", "meta.json");
-}
-function readMeta(repoRoot) {
-  try {
-    const d = JSON.parse(readFileSync5(metaPath(repoRoot), "utf8"));
-    return {
-      version: 1,
-      lastSync: d.lastSync ?? null,
-      lastResult: d.lastResult,
-      lastReason: d.lastReason,
-      startedAt: d.startedAt,
-      cost: d.cost,
-      lastSkip: d.lastSkip,
-      scope: d.scope
-    };
-  } catch {
-    return { version: 1, lastSync: null };
-  }
-}
-function writeMeta(repoRoot, meta) {
-  writeJsonAtomic(metaPath(repoRoot), meta);
-}
-function updateMeta(repoRoot, update, opts = {}) {
-  withSyncMicroLock(join5(repoRoot, ".visflow", ".meta-lock"), () => {
-    writeMeta(repoRoot, update(readMeta(repoRoot)));
-  }, opts);
-}
-function readMetaOrNull(repoRoot) {
-  return existsSync3(metaPath(repoRoot)) ? readMeta(repoRoot) : null;
-}
-
 // src/license/state.ts
-import { mkdirSync as mkdirSync5, readFileSync as readFileSync6, writeFileSync as writeFileSync3, renameSync as renameSync5 } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import { homedir } from "node:os";
-import { join as join6 } from "node:path";
+import { join } from "node:path";
 function licenseDir(env) {
-  return env.VISFLOW_LICENSE_DIR ?? join6(homedir(), ".config", "visflow");
+  return env.VISFLOW_LICENSE_DIR ?? join(homedir(), ".config", "visflow");
 }
-var statePath = (env) => join6(licenseDir(env), "license.json");
+var statePath = (env) => join(licenseDir(env), "license.json");
 function readLicenseState(env) {
   try {
-    const parsed = JSON.parse(readFileSync6(statePath(env), "utf8"));
+    const parsed = JSON.parse(readFileSync(statePath(env), "utf8"));
     return parsed && typeof parsed === "object" ? parsed : null;
   } catch {
     return null;
   }
 }
+function writeLicenseState(env, state) {
+  const path = statePath(env);
+  mkdirSync(licenseDir(env), { recursive: true });
+  const tmp = `${path}.tmp-${process.pid}`;
+  writeFileSync(tmp, JSON.stringify(state, null, 2) + "\n", { mode: 384 });
+  renameSync(tmp, path);
+}
 
 // src/license/polar-config.ts
+var POLAR_ORG_ID = "c2278667-529a-4611-a9f6-728ca68b2096";
+var POLAR_API_BASE = "https://api.polar.sh/v1";
 var PRICING_URL = "https://visflow.dev/pricing";
+
+// src/license/polar.ts
+var TIMEOUT_MS = 3e3;
+function polarClient(env = {}, fetchImpl = fetch) {
+  const base = env.VISFLOW_POLAR_API_BASE ?? POLAR_API_BASE;
+  const orgId = env.VISFLOW_POLAR_ORG_ID ?? POLAR_ORG_ID;
+  const post = async (path, body) => {
+    try {
+      const res = await fetchImpl(`${base}/customer-portal/license-keys/${path}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ organization_id: orgId, ...body }),
+        signal: AbortSignal.timeout(TIMEOUT_MS)
+      });
+      const parsed = res.status === 204 ? {} : await res.json().catch(() => ({}));
+      return { status: res.status, body: parsed };
+    } catch {
+      return { status: 0, body: null };
+    }
+  };
+  const toResult = (r) => {
+    if (r.status === 0 || r.status >= 500) return { ok: "unreachable", detail: r.status === 0 ? "network error" : `server error ${r.status}` };
+    if (r.status >= 400) return { ok: "denied", detail: r.body?.detail ?? `rejected (${r.status})` };
+    if (r.body?.status && r.body.status !== "granted") return { ok: "denied", detail: r.body.status };
+    return { ok: "granted", activationId: r.body?.id, expiresAt: r.body?.expires_at ?? r.body?.license_key?.expires_at ?? null };
+  };
+  return {
+    validate: async (key, activationId) => toResult(await post("validate", { key, ...activationId ? { activation_id: activationId } : {} })),
+    activate: async (key, label) => toResult(await post("activate", { key, label })),
+    deactivate: async (key, activationId) => {
+      const r = await post("deactivate", { key, activation_id: activationId });
+      return { ok: r.status === 204 || r.status >= 200 && r.status < 300 };
+    }
+  };
+}
 
 // src/license/entitlement.ts
 var TRIAL_DAYS = 7;
@@ -349,10 +126,204 @@ function checkEntitlementCached(env, now = /* @__PURE__ */ new Date()) {
     return { allowed: true, kind: "licensed", warnings: [] };
   }
 }
+async function checkEntitlement(env, deps = {}) {
+  const now = deps.now ?? /* @__PURE__ */ new Date();
+  try {
+    let state = readLicenseState(env);
+    if (!state?.key && !state?.trialStartedAt) {
+      state = { ...state ?? { version: 1 }, version: 1, trialStartedAt: now.toISOString() };
+      writeLicenseState(env, state);
+      const started = decideCached(state, now);
+      return { ...started, warnings: [`VisFlow trial started \u2014 ${TRIAL_DAYS} days free, then $15/mo: ${PRICING_URL}`, ...started.warnings] };
+    }
+    const cached = decideCached(state, now);
+    if (!state?.key || cached.kind === "licensed" || cached.kind === "revoked") return cached;
+    const res = await (deps.polar ?? polarClient(env)).validate(state.key, state.activationId);
+    if (res.ok === "granted") {
+      writeLicenseState(env, { ...state, status: "granted", lastValidatedAt: now.toISOString(), expiresAt: res.expiresAt });
+      return { allowed: true, kind: "licensed", warnings: [] };
+    }
+    if (res.ok === "denied") {
+      writeLicenseState(env, { ...state, status: "revoked" });
+      return decideCached({ ...state, status: "revoked" }, now);
+    }
+    if (cached.kind === "grace")
+      return { ...cached, warnings: [`VisFlow: couldn't reach the license server \u2014 licensed mode continues until ${day(state.lastValidatedAt ?? now.toISOString(), GRACE_DAYS)}.`] };
+    return cached;
+  } catch {
+    const cached = checkEntitlementCached(env, now);
+    return cached.allowed ? { ...cached, warnings: [...cached.warnings, "VisFlow: license check hit an unexpected error \u2014 continuing."] } : cached;
+  }
+}
 
-// src/core/session-context.ts
-import { existsSync as existsSync5, realpathSync as realpathSync3, statSync as statSync3 } from "node:fs";
-import { dirname as dirname3, isAbsolute as isAbsolute2, join as join11, normalize as normalize2, relative as relative2, resolve as resolve2, sep as sep2 } from "node:path";
+// src/workspace-reconcile/supervisor.ts
+import { createHash as createHash5 } from "node:crypto";
+
+// src/core/lock.ts
+import { writeFileSync as writeFileSync2, mkdirSync as mkdirSync2, readFileSync as readFileSync3, rmSync as rmSync2, statSync as statSync2 } from "node:fs";
+import { dirname, join as join2 } from "node:path";
+
+// src/core/stale-pid-file.ts
+import { readFileSync as readFileSync2, statSync, renameSync as renameSync2, rmSync, utimesSync } from "node:fs";
+function readPidFileOwner(path) {
+  try {
+    const raw = readFileSync2(path, "utf8");
+    const trimmed = raw.trim();
+    if (/^\d+$/.test(trimmed)) {
+      const pid = Number(trimmed);
+      return Number.isInteger(pid) && pid > 0 ? { pid, raw } : null;
+    }
+    const parsed = JSON.parse(trimmed);
+    if (!parsed || typeof parsed !== "object") return null;
+    const owner = parsed;
+    if (!Number.isInteger(owner.pid) || owner.pid <= 0) return null;
+    if (typeof owner.token !== "string" || owner.token.length === 0) return null;
+    return { pid: owner.pid, token: owner.token, raw };
+  } catch {
+    return null;
+  }
+}
+function isPidAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return e.code !== "ESRCH";
+  }
+}
+function isStalePidFile(path, ttlMs) {
+  try {
+    if (Date.now() - statSync(path).mtimeMs > ttlMs) return true;
+    const owner = readPidFileOwner(path);
+    if (!owner) return false;
+    return !isPidAlive(owner.pid);
+  } catch {
+    return false;
+  }
+}
+function touchPidFile(path) {
+  try {
+    utimesSync(path, /* @__PURE__ */ new Date(), /* @__PURE__ */ new Date());
+  } catch {
+  }
+}
+function stealPidFile(path) {
+  const grave = `${path}.stale-${process.pid}`;
+  try {
+    renameSync2(path, grave);
+  } catch {
+    return false;
+  }
+  try {
+    rmSync(grave, { force: true });
+  } catch {
+  }
+  return true;
+}
+function releaseOwnedPidFile(path, expectedRaw = `${process.pid}`) {
+  try {
+    if (readFileSync2(path, "utf8") === expectedRaw) rmSync(path, { force: true });
+  } catch {
+  }
+}
+
+// src/core/lock.ts
+var sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function withStateLock(stateDir, fn, opts = {}) {
+  const retries = opts.retries ?? 100;
+  const delayMs = opts.delayMs ?? 20;
+  const staleMs = opts.staleMs ?? 6e4;
+  const lockPath = join2(stateDir, ".lock");
+  mkdirSync2(stateDir, { recursive: true });
+  for (let attempt = 0; ; attempt++) {
+    try {
+      writeFileSync2(lockPath, `${process.pid}`, { flag: "wx" });
+      break;
+    } catch {
+      if (isStalePidFile(lockPath, staleMs) && stealPidFile(lockPath)) continue;
+      if (attempt >= retries) throw new Error("visflow: could not acquire .visflow/.lock");
+      await sleep(delayMs);
+    }
+  }
+  try {
+    return await fn();
+  } finally {
+    releaseOwnedPidFile(lockPath);
+  }
+}
+function withSyncMicroLock(lockPath, fn, opts = {}) {
+  const lockTimeoutMs = opts.lockTimeoutMs ?? 1500;
+  const staleMs = opts.staleMs ?? 1e3;
+  mkdirSync2(dirname(lockPath), { recursive: true });
+  const deadline = Date.now() + lockTimeoutMs;
+  let locked = false;
+  while (Date.now() < deadline) {
+    try {
+      writeFileSync2(lockPath, `${process.pid}`, { flag: "wx" });
+      locked = true;
+      break;
+    } catch {
+      try {
+        if (Date.now() - statSync2(lockPath).mtimeMs > staleMs) {
+          rmSync2(lockPath, { force: true });
+          continue;
+        }
+      } catch {
+        continue;
+      }
+      const spinUntil = Date.now() + 5;
+      while (Date.now() < spinUntil) {
+      }
+    }
+  }
+  try {
+    return fn();
+  } finally {
+    if (locked) {
+      try {
+        if (readFileSync3(lockPath, "utf8") === `${process.pid}`) rmSync2(lockPath, { force: true });
+      } catch {
+      }
+    }
+  }
+}
+
+// src/core/run-guard.ts
+import { writeFileSync as writeFileSync3, mkdirSync as mkdirSync3 } from "node:fs";
+import { join as join3 } from "node:path";
+import { randomUUID } from "node:crypto";
+var GUARD_TTL_MS = 10 * 60 * 1e3;
+function acquireStateRunGuard(stateDir, filename, opts = {}) {
+  const ttlMs = opts.ttlMs ?? GUARD_TTL_MS;
+  const path = join3(stateDir, filename);
+  mkdirSync3(stateDir, { recursive: true });
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const token = randomUUID();
+      const ownerRaw = JSON.stringify({ version: 1, pid: process.pid, token });
+      writeFileSync3(path, ownerRaw, { flag: "wx" });
+      const lease = setInterval(() => touchPidFile(path), Math.max(1e3, Math.floor(ttlMs / 5)));
+      lease.unref();
+      return {
+        acquired: true,
+        token,
+        release: () => {
+          clearInterval(lease);
+          releaseOwnedPidFile(path, ownerRaw);
+        }
+      };
+    } catch {
+      if (attempt === 0 && isStalePidFile(path, ttlMs) && stealPidFile(path)) continue;
+      break;
+    }
+  }
+  return { acquired: false, release: () => {
+  } };
+}
+
+// src/core/workspace-load.ts
+import { existsSync as existsSync2, realpathSync as realpathSync2 } from "node:fs";
+import { resolve } from "node:path";
 
 // src/core/paths.ts
 import { isAbsolute, normalize, relative, sep } from "node:path";
@@ -360,17 +331,13 @@ function isPathInside(parent, child) {
   return child === parent || child.startsWith(parent + sep);
 }
 
-// src/core/workspace-load.ts
-import { existsSync as existsSync4, realpathSync as realpathSync2 } from "node:fs";
-import { resolve } from "node:path";
-
 // src/core/decisions.ts
-import { readFileSync as readFileSync8 } from "node:fs";
-import { join as join8 } from "node:path";
+import { readFileSync as readFileSync5 } from "node:fs";
+import { join as join6 } from "node:path";
 
 // src/core/load-graph.ts
-import { readFileSync as readFileSync7 } from "node:fs";
-import { join as join7 } from "node:path";
+import { readFileSync as readFileSync4 } from "node:fs";
+import { join as join4 } from "node:path";
 
 // node_modules/zod/v3/external.js
 var external_exports = {};
@@ -4510,14 +4477,25 @@ function parseGraph(raw) {
   return { ok: true, graph: result.graph, raw };
 }
 function loadGraph(repoRoot) {
-  const path = join7(repoRoot, ".visflow", "graph.json");
+  const path = join4(repoRoot, ".visflow", "graph.json");
   let raw;
   try {
-    raw = readFileSync7(path, "utf8");
+    raw = readFileSync4(path, "utf8");
   } catch {
     return { ok: false, error: { kind: "not-found", messages: [`No graph found at ${path}. Run /visflow:init first.`] } };
   }
   return parseGraph(raw);
+}
+
+// src/core/atomic.ts
+import { writeFileSync as writeFileSync4, renameSync as renameSync3, mkdirSync as mkdirSync4 } from "node:fs";
+import { dirname as dirname2, basename, join as join5 } from "node:path";
+function writeJsonAtomic(targetPath, data) {
+  const dir = dirname2(targetPath);
+  mkdirSync4(dir, { recursive: true });
+  const tmp = join5(dir, `.${basename(targetPath)}.tmp-${process.pid}-${Date.now()}`);
+  writeFileSync4(tmp, JSON.stringify(data, null, 2) + "\n");
+  renameSync3(tmp, targetPath);
 }
 
 // src/schema/decisions-schema.ts
@@ -4544,7 +4522,7 @@ function validateDecisions(data) {
 var DecisionsInvalidError = class extends Error {
 };
 function decisionsPath(repoRoot) {
-  return join8(repoRoot, ".visflow", "decisions.json");
+  return join6(repoRoot, ".visflow", "decisions.json");
 }
 function parseDecisions(raw) {
   let data;
@@ -4565,7 +4543,7 @@ ${result.errors.map((e) => `  - ${e}`).join("\n")}`
 function readDecisions(repoRoot) {
   let raw;
   try {
-    raw = readFileSync8(decisionsPath(repoRoot), "utf8");
+    raw = readFileSync5(decisionsPath(repoRoot), "utf8");
   } catch {
     return { version: 1, decisions: {} };
   }
@@ -4573,19 +4551,19 @@ function readDecisions(repoRoot) {
 }
 
 // src/core/config.ts
-import { readFileSync as readFileSync9 } from "node:fs";
-import { join as join9 } from "node:path";
+import { readFileSync as readFileSync6 } from "node:fs";
+import { join as join7 } from "node:path";
 var RepositoryConfigSchema = external_exports.object({
   version: external_exports.literal(1),
   repositoryId: external_exports.string().uuid().optional(),
   commitPosture: external_exports.enum(["shared", "local"]).optional(),
   configuredAt: external_exports.string().optional()
 }).passthrough();
-var configPath = (repoRoot) => join9(repoRoot, ".visflow", "config.json");
+var configPath = (repoRoot) => join7(repoRoot, ".visflow", "config.json");
 function readRepositoryConfig(repoRoot) {
   let raw;
   try {
-    raw = readFileSync9(configPath(repoRoot), "utf8");
+    raw = readFileSync6(configPath(repoRoot), "utf8");
   } catch {
     return { ok: false, reason: "missing", detail: "No .visflow/config.json found." };
   }
@@ -4606,9 +4584,36 @@ function readRepositoryConfig(repoRoot) {
   return { ok: true, config: parsed.data };
 }
 
+// src/core/meta.ts
+import { readFileSync as readFileSync7, existsSync } from "node:fs";
+import { join as join8 } from "node:path";
+function metaPath(repoRoot) {
+  return join8(repoRoot, ".visflow", "meta.json");
+}
+function readMeta(repoRoot) {
+  try {
+    const d = JSON.parse(readFileSync7(metaPath(repoRoot), "utf8"));
+    return {
+      version: 1,
+      lastSync: d.lastSync ?? null,
+      lastResult: d.lastResult,
+      lastReason: d.lastReason,
+      startedAt: d.startedAt,
+      cost: d.cost,
+      lastSkip: d.lastSkip,
+      scope: d.scope
+    };
+  } catch {
+    return { version: 1, lastSync: null };
+  }
+}
+function readMetaOrNull(repoRoot) {
+  return existsSync(metaPath(repoRoot)) ? readMeta(repoRoot) : null;
+}
+
 // src/core/workspace-store.ts
-import { readFileSync as readFileSync10 } from "node:fs";
-import { join as join10 } from "node:path";
+import { readFileSync as readFileSync8 } from "node:fs";
+import { join as join9 } from "node:path";
 
 // src/schema/workspace-schema.ts
 import { posix, win32 } from "node:path";
@@ -4691,13 +4696,13 @@ function validateWorkspaceLocations(data) {
 }
 
 // src/core/workspace-store.ts
-var workspaceDir = (root) => join10(root, ".visflow-workspace");
-var workspaceFilePath = (root) => join10(workspaceDir(root), "workspace.json");
-var locationsFilePath = (root) => join10(workspaceDir(root), "locations.json");
+var workspaceDir = (root) => join9(root, ".visflow-workspace");
+var workspaceFilePath = (root) => join9(workspaceDir(root), "workspace.json");
+var locationsFilePath = (root) => join9(workspaceDir(root), "locations.json");
 function readWorkspaceFile(root) {
   let raw;
   try {
-    raw = readFileSync10(workspaceFilePath(root), "utf8");
+    raw = readFileSync8(workspaceFilePath(root), "utf8");
   } catch {
     return { ok: false, reason: "missing", errors: ["No .visflow-workspace/workspace.json found."] };
   }
@@ -4713,7 +4718,7 @@ function readWorkspaceFile(root) {
 function readWorkspaceLocations(root) {
   let raw;
   try {
-    raw = readFileSync10(locationsFilePath(root), "utf8");
+    raw = readFileSync8(locationsFilePath(root), "utf8");
   } catch {
     return { ok: true, value: { version: 1, locations: {} }, raw: null };
   }
@@ -4725,6 +4730,11 @@ function readWorkspaceLocations(root) {
   }
   const result = validateWorkspaceLocations(data);
   return result.ok ? { ok: true, value: result.value, raw } : { ok: false, reason: "invalid-schema", errors: result.errors };
+}
+function writeWorkspaceFile(root, value) {
+  const checked = validateWorkspaceFile(value);
+  if (!checked.ok) throw new Error(`Invalid workspace: ${checked.errors.join("; ")}`);
+  writeJsonAtomic(workspaceFilePath(root), checked.value);
 }
 
 // src/core/workspace-load.ts
@@ -4762,7 +4772,7 @@ function loadWorkspace(root) {
     const location = locations.value.locations[member.repositoryId];
     if (!location) continue;
     const candidate = resolve(root, location);
-    if (!existsSync4(candidate)) continue;
+    if (!existsSync2(candidate)) continue;
     try {
       roots.set(member.repositoryId, realpathSync2(candidate));
     } catch {
@@ -4843,171 +4853,1375 @@ function loadWorkspace(root) {
   };
 }
 
-// src/core/session-context.ts
-var isDirectory = (path) => {
-  try {
-    return statSync3(path).isDirectory();
-  } catch {
-    return false;
+// src/workspace-reconcile/boundary-index.ts
+import { createHash as createHash2 } from "node:crypto";
+import { existsSync as existsSync3, readFileSync as readFileSync9, realpathSync as realpathSync3, statSync as statSync3 } from "node:fs";
+import { isAbsolute as isAbsolute2, join as join10, posix as posix2, resolve as resolve2, win32 as win322 } from "node:path";
+
+// src/schema/boundary-schema.ts
+var BOUNDARY_KINDS = [
+  "package",
+  "http",
+  "schema",
+  "event",
+  "deployment",
+  "artifact"
+];
+var MAX_BOUNDARY_FACTS = 8192;
+var MAX_BOUNDARY_EVIDENCE = 16;
+var MAX_BOUNDARY_FILES = 16384;
+var EvidenceSchema = external_exports.object({
+  path: external_exports.string().min(1).max(4e3).refine(isSafeWorkspaceRelativePath, "must be a repository-relative path"),
+  detail: external_exports.string().max(4e3).optional()
+});
+var BoundaryFactSchema = external_exports.object({
+  id: external_exports.string().regex(/^[a-f0-9]{64}$/),
+  kind: external_exports.enum(BOUNDARY_KINDS),
+  direction: external_exports.enum(["consumes", "provides"]),
+  key: external_exports.string().min(1).max(1e3),
+  nodeId: external_exports.string().min(1).max(1e3),
+  evidence: external_exports.array(EvidenceSchema).min(1).max(MAX_BOUNDARY_EVIDENCE)
+});
+var BoundaryFileCacheSchema = external_exports.object({
+  hash: external_exports.string().regex(/^[a-f0-9]{64}$/),
+  nodeId: external_exports.string().min(1).max(1e3),
+  facts: external_exports.array(BoundaryFactSchema).max(MAX_BOUNDARY_FACTS)
+});
+var BoundaryIndexSchema = external_exports.object({
+  version: external_exports.literal(1),
+  repositoryId: external_exports.string().uuid(),
+  graphHash: external_exports.string().regex(/^[a-f0-9]{64}$/),
+  generatedAt: external_exports.string().datetime(),
+  facts: external_exports.array(BoundaryFactSchema).max(MAX_BOUNDARY_FACTS),
+  fingerprint: external_exports.string().regex(/^[a-f0-9]{64}$/),
+  files: external_exports.record(BoundaryFileCacheSchema).optional(),
+  diagnostics: external_exports.array(external_exports.string().max(4e3)).max(256).optional(),
+  truncated: external_exports.boolean().optional()
+});
+function validateBoundaryIndex(data) {
+  const parsed = BoundaryIndexSchema.safeParse(data);
+  if (!parsed.success) return {
+    ok: false,
+    errors: parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+  };
+  const ids = /* @__PURE__ */ new Set();
+  const errors = [];
+  for (const fact of parsed.data.facts) {
+    if (ids.has(fact.id)) errors.push(`Duplicate boundary fact id: ${fact.id}`);
+    ids.add(fact.id);
   }
-};
-function resolveSessionContext(cwd) {
-  let current = resolve2(cwd);
-  if (!isDirectory(current)) current = dirname3(current);
-  for (; ; ) {
-    const repository = existsSync5(join11(current, ".visflow", "config.json")) || existsSync5(join11(current, ".visflow", "graph.json"));
-    const workspace = existsSync5(join11(current, ".visflow-workspace", "workspace.json"));
-    if (repository) return { kind: "repository", repoRoot: current };
-    if (workspace) return { kind: "workspace", workspaceRoot: current };
-    const parent = dirname3(current);
-    if (parent === current) return { kind: "none" };
-    current = parent;
-  }
+  return errors.length ? { ok: false, errors } : { ok: true, value: parsed.data };
 }
 
-// src/hooks/reconcile-stop.ts
-function liveRunGuard(repoRoot) {
-  const guard = join12(repoRoot, ".visflow", ".reconcile-running");
-  return existsSync6(guard) && !isStalePidFile(guard, GUARD_TTL_MS);
+// src/workspace-reconcile/extractors/shared.ts
+import { createHash } from "node:crypto";
+var hashText = (value) => createHash("sha256").update(value).digest("hex");
+var normalizeKey = (kind, value) => `${kind}:${value.trim().toLowerCase().replace(/\s+/g, " ")}`;
+var rawFact = (kind, direction, key, detail) => ({ kind, direction, key: normalizeKey(kind, key), ...detail ? { detail } : {} });
+function uniqueFacts(facts) {
+  const seen = /* @__PURE__ */ new Set();
+  return facts.filter((fact) => {
+    const key = JSON.stringify([fact.kind, fact.direction, fact.key, fact.detail ?? ""]);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
-function writeSkip(repoRoot, ts, reason) {
-  updateMeta(repoRoot, (m) => ({ ...m, version: 1, lastSkip: { ts, reason } }));
-}
-function writeLivePassSkip(repoRoot, ts, info) {
-  const details = [
-    info.events > 0 ? `${info.events} event(s)` : void 0,
-    info.targets > 0 ? `${info.targets} target(s)` : void 0,
-    info.recoverableEvents ? "recoverable event snapshot(s)" : void 0,
-    info.recoverableTargets ? "recoverable target snapshot(s)" : void 0
-  ].filter(Boolean).join(", ");
-  writeSkip(repoRoot, ts, `pass running (${details} left queued)`);
-}
-function handleStop(payloadRaw, env, deps) {
-  if (env.VISFLOW_RECONCILING) return { spawned: false, reason: "sentinel set" };
-  if (!checkEntitlementCached({ ...process.env, ...env }).allowed) return { spawned: false, reason: "license: dormant" };
-  let p;
-  try {
-    p = JSON.parse(payloadRaw);
-  } catch {
-    return { spawned: false, reason: "bad payload" };
+
+// src/workspace-reconcile/extractors/package.ts
+var builtin = /* @__PURE__ */ new Set([
+  "assert",
+  "buffer",
+  "child_process",
+  "crypto",
+  "events",
+  "fs",
+  "http",
+  "https",
+  "module",
+  "os",
+  "path",
+  "stream",
+  "timers",
+  "url",
+  "util",
+  "worker_threads",
+  "zlib"
+]);
+function packageRoot(specifier) {
+  const clean = specifier.replace(/^node:/, "");
+  if (!clean || clean.startsWith(".") || clean.startsWith("/") || builtin.has(clean.split("/")[0])) return null;
+  if (clean.startsWith("@")) {
+    const [scope, name] = clean.split("/");
+    return scope && name ? `${scope}/${name}` : null;
   }
-  const cwd = p.cwd;
-  if (!cwd) return { spawned: false, reason: "no cwd" };
-  const context = resolveSessionContext(cwd);
-  if (context.kind === "workspace") {
-    const loaded = loadWorkspace(context.workspaceRoot);
-    if (!loaded.ok) return { spawned: false, reason: "workspace unavailable" };
-    const dirty = [];
-    let docsConsumed = 0;
-    for (const member of loaded.workspace.members) {
-      if (member.status !== "ready" || !member.repoRoot) continue;
-      const events2 = deps.readEvents(member.repoRoot);
-      const targets2 = (deps.readTargets ?? readTargets)(member.repoRoot);
-      const hasTargets2 = targets2.nodeIds.length > 0 || targets2.files.length > 0;
-      const recoverableEvents2 = hasRecoverableEventDrains(member.repoRoot);
-      const recoverableTargets2 = hasRecoverableTargetDrains(member.repoRoot);
-      const hasRecovery2 = recoverableEvents2 || recoverableTargets2;
-      if ((events2.length > 0 || hasTargets2 || hasRecovery2) && liveRunGuard(member.repoRoot)) {
-        writeLivePassSkip(member.repoRoot, (deps.now ?? (() => (/* @__PURE__ */ new Date()).toISOString()))(), {
-          events: events2.length,
-          targets: targets2.nodeIds.length + targets2.files.length,
-          recoverableEvents: recoverableEvents2,
-          recoverableTargets: recoverableTargets2
+  return clean.split("/")[0] || null;
+}
+var extractPackageFacts = (path, contents) => {
+  const facts = [];
+  if (/(^|\/)package\.json$/.test(path)) {
+    try {
+      const pkg = JSON.parse(contents);
+      if (typeof pkg.name === "string" && pkg.name.trim()) {
+        facts.push(rawFact("package", "provides", `npm:${pkg.name}`, `declares npm package ${pkg.name}`));
+      }
+      for (const field of ["dependencies", "peerDependencies", "optionalDependencies"]) {
+        const deps = pkg[field];
+        if (!deps || typeof deps !== "object" || Array.isArray(deps)) continue;
+        for (const name of Object.keys(deps)) {
+          facts.push(rawFact("package", "consumes", `npm:${name}`, `${field} includes ${name}`));
+        }
+      }
+    } catch {
+    }
+  }
+  const importPattern = /(?:\bfrom\s*|\brequire\s*\(|\bimport\s*\()\s*['"]([^'"]+)['"]/g;
+  for (const match of contents.matchAll(importPattern)) {
+    const name = packageRoot(match[1]);
+    if (name) facts.push(rawFact("package", "consumes", `npm:${name}`, `imports ${match[1]}`));
+  }
+  for (const match of contents.matchAll(/\bimport\s*['"]([^'"]+)['"]/g)) {
+    const name = packageRoot(match[1]);
+    if (name) facts.push(rawFact("package", "consumes", `npm:${name}`, `imports ${match[1]}`));
+  }
+  return uniqueFacts(facts);
+};
+
+// src/workspace-reconcile/extractors/http.ts
+var normalizePath = (value) => {
+  let path = value.trim();
+  path = path.replace(/^\$\{[^}]+\}/, "");
+  if (/^https?:\/\//i.test(path)) {
+    try {
+      path = new URL(path).pathname;
+    } catch {
+      return null;
+    }
+  }
+  if (!path.startsWith("/")) return null;
+  path = path.split(/[?#]/)[0].replace(/\$\{[^}]+\}/g, ":param").replace(/:[A-Za-z_][\w-]*/g, ":param").replace(/\{[^}]+\}/g, ":param").replace(/\/+/g, "/");
+  return path.length > 1 ? path.replace(/\/$/, "") : path;
+};
+var extractHttpFacts = (_path, contents) => {
+  const facts = [];
+  const route = /\b(?:app|router|server)\s*\.\s*(get|post|put|patch|delete|options|head)\s*\(\s*['"`]([^'"`]+)['"`]/gi;
+  for (const match of contents.matchAll(route)) {
+    const path = normalizePath(match[2]);
+    if (path) facts.push(rawFact("http", "provides", `${match[1].toUpperCase()} ${path}`, `declares ${match[1].toUpperCase()} ${match[2]}`));
+  }
+  const decorator = /@(Get|Post|Put|Patch|Delete|Options|Head)\s*\(\s*['"`]([^'"`]*)['"`]\s*\)/gi;
+  for (const match of contents.matchAll(decorator)) {
+    const path = normalizePath("/" + match[2].replace(/^\//, ""));
+    if (path) facts.push(rawFact("http", "provides", `${match[1].toUpperCase()} ${path}`, `declares @${match[1]}(${match[2]})`));
+  }
+  const simpleClient = /\b(?:fetch|axios\s*\.\s*(get|post|put|patch|delete)|client\s*\.\s*(get|post|put|patch|delete))\s*\(\s*['"`]([^'"`]+)['"`]/gi;
+  for (const match of contents.matchAll(simpleClient)) {
+    const method = (match[1] ?? match[2] ?? "GET").toUpperCase();
+    const value = match[3];
+    const path = normalizePath(value);
+    if (path) facts.push(rawFact("http", "consumes", `${method} ${path}`, `calls ${method} ${value}`));
+  }
+  return uniqueFacts(facts);
+};
+
+// src/workspace-reconcile/extractors/schema.ts
+import { basename as basename2 } from "node:path";
+var extractSchemaFacts = (path, contents) => {
+  const facts = [];
+  if (path.endsWith(".proto")) {
+    facts.push(rawFact("schema", "provides", `protobuf:${basename2(path)}`, `defines ${basename2(path)}`));
+    for (const match of contents.matchAll(/\bimport\s+['"]([^'"]+\.proto)['"]/g)) {
+      facts.push(rawFact("schema", "consumes", `protobuf:${basename2(match[1])}`, `imports ${match[1]}`));
+    }
+  }
+  if (/openapi|swagger/i.test(path)) {
+    const title = contents.match(/(?:"title"\s*:\s*"|^\s*title\s*:\s*)([^"\n]+)/m)?.[1]?.trim();
+    if (title) facts.push(rawFact("schema", "provides", `openapi:${title}`, `declares OpenAPI ${title}`));
+  }
+  return uniqueFacts(facts);
+};
+
+// src/workspace-reconcile/extractors/event.ts
+var extractEventFacts = (_path, contents) => {
+  const facts = [];
+  for (const match of contents.matchAll(/\b(?:publish|emit|sendToQueue)\s*\(\s*['"`]([^'"`]+)['"`]/g)) {
+    facts.push(rawFact("event", "provides", `event:${match[1]}`, `publishes ${match[1]}`));
+  }
+  for (const match of contents.matchAll(/\b(?:subscribe|consume|addEventListener)\s*\(\s*['"`]([^'"`]+)['"`]/g)) {
+    facts.push(rawFact("event", "consumes", `event:${match[1]}`, `subscribes to ${match[1]}`));
+  }
+  return uniqueFacts(facts);
+};
+
+// src/workspace-reconcile/extractors/deployment.ts
+var extractDeploymentFacts = (path, contents) => {
+  if (!/\.(?:ya?ml|tf|json)$|Dockerfile$/i.test(path)) return [];
+  const facts = [];
+  for (const match of contents.matchAll(/^\s*(?:service|name)\s*:\s*['"]?([a-z0-9][\w.-]+)['"]?\s*$/gim)) {
+    facts.push(rawFact("deployment", "provides", `service:${match[1]}`, `declares service ${match[1]}`));
+  }
+  for (const match of contents.matchAll(/^\s*(?:depends_on\s*:\s*|serviceName\s*:\s*|host\s*:\s*)['"]?([a-z0-9][\w.-]+)['"]?\s*$/gim)) {
+    facts.push(rawFact("deployment", "consumes", `service:${match[1]}`, `references service ${match[1]}`));
+  }
+  return uniqueFacts(facts);
+};
+
+// src/workspace-reconcile/extractors/artifact.ts
+var cleanImage = (value) => value.trim().replace(/@sha256:[a-f0-9]+$/i, "").replace(/:[^/:]+$/, "");
+var extractArtifactFacts = (path, contents) => {
+  const facts = [];
+  if (/Dockerfile$/i.test(path)) {
+    for (const match of contents.matchAll(/^\s*FROM\s+([^\s]+)(?:\s+AS\s+\S+)?/gim)) {
+      facts.push(rawFact("artifact", "consumes", `container:${cleanImage(match[1])}`, `uses image ${match[1]}`));
+    }
+  }
+  for (const match of contents.matchAll(/^\s*image\s*:\s*['"]?([^\s'"]+)['"]?\s*$/gim)) {
+    facts.push(rawFact("artifact", "consumes", `container:${cleanImage(match[1])}`, `uses image ${match[1]}`));
+  }
+  const produced = contents.match(/^\s*(?:imageName|repository)\s*[:=]\s*['"]?([^\s'"]+)['"]?\s*$/im)?.[1];
+  if (produced) facts.push(rawFact("artifact", "provides", `container:${cleanImage(produced)}`, `publishes image ${produced}`));
+  return uniqueFacts(facts);
+};
+
+// src/workspace-reconcile/boundary-index.ts
+var BOUNDARY_INDEX_FILE = "boundary-index.json";
+var boundaryIndexPath = (repoRoot) => join10(repoRoot, ".visflow", BOUNDARY_INDEX_FILE);
+var DEFAULT_BOUNDARY_FILE_CAP_BYTES = 512 * 1024;
+var DEFAULT_EXTRACTORS = [
+  extractPackageFacts,
+  extractHttpFacts,
+  extractSchemaFacts,
+  extractEventFacts,
+  extractDeploymentFacts,
+  extractArtifactFacts
+];
+var canonicalHash = (value) => createHash2("sha256").update(JSON.stringify(value)).digest("hex");
+var safeRelative = (path) => {
+  if (!path || isAbsolute2(path) || posix2.isAbsolute(path) || win322.isAbsolute(path)) return false;
+  const normalized = posix2.normalize(path.replaceAll("\\", "/"));
+  return normalized !== "." && normalized !== ".." && !normalized.startsWith("../");
+};
+var containedRealPath = (repoRoot, rel) => {
+  try {
+    const root = realpathSync3(repoRoot);
+    const file = realpathSync3(resolve2(root, rel));
+    return isPathInside(root, file) ? file : null;
+  } catch {
+    return null;
+  }
+};
+function readBoundaryIndex(repoRoot) {
+  let raw;
+  try {
+    raw = readFileSync9(boundaryIndexPath(repoRoot), "utf8");
+  } catch {
+    return { ok: false, reason: "missing", errors: ["No .visflow/boundary-index.json found."] };
+  }
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch (error) {
+    return { ok: false, reason: "invalid-json", errors: [error.message] };
+  }
+  const checked = validateBoundaryIndex(data);
+  return checked.ok ? { ok: true, value: checked.value, raw } : { ok: false, reason: "invalid-schema", errors: checked.errors };
+}
+function materializeFact(nodeId, path, raw) {
+  const evidence = [{ path, ...raw.detail ? { detail: raw.detail } : {} }];
+  const identity = { kind: raw.kind, direction: raw.direction, key: raw.key, nodeId, evidence };
+  return { id: canonicalHash(identity), ...identity };
+}
+var factOrder = (left, right) => left.kind.localeCompare(right.kind) || left.key.localeCompare(right.key) || left.direction.localeCompare(right.direction) || left.nodeId.localeCompare(right.nodeId) || left.id.localeCompare(right.id);
+function refreshBoundaryIndex(repoRoot, opts = {}) {
+  const config = readRepositoryConfig(repoRoot);
+  if (!config.ok || !config.config.repositoryId) return { ok: false, reason: "repository identity unavailable" };
+  const loaded = loadGraph(repoRoot);
+  if (!loaded.ok) return { ok: false, reason: `graph unavailable: ${loaded.error.kind}` };
+  const graphHash = hashText(loaded.raw);
+  const previous = readBoundaryIndex(repoRoot);
+  const previousFiles = previous.ok ? previous.value.files ?? {} : {};
+  const diagnostics = [];
+  const owners = /* @__PURE__ */ new Map();
+  for (const node of loaded.graph.nodes) {
+    for (const original of node.files) {
+      const path = posix2.normalize(original.replaceAll("\\", "/"));
+      if (!safeRelative(path)) {
+        diagnostics.push(`ignored unsafe graph path: ${original}`);
+        continue;
+      }
+      if (owners.has(path) && owners.get(path) !== node.id) owners.set(path, null);
+      else owners.set(path, node.id);
+    }
+  }
+  if (!owners.has("package.json") && existsSync3(join10(repoRoot, "package.json"))) {
+    try {
+      const pkg = JSON.parse(readFileSync9(join10(repoRoot, "package.json"), "utf8"));
+      const entries = [];
+      const collect = (value) => {
+        if (typeof value === "string") entries.push(posix2.normalize(value.replace(/^\.\//, "")));
+        else if (Array.isArray(value)) value.forEach(collect);
+        else if (value && typeof value === "object") Object.values(value).forEach(collect);
+      };
+      collect(pkg.main);
+      collect(pkg.module);
+      collect(pkg.types);
+      collect(pkg.bin);
+      collect(pkg.exports);
+      const entryOwners = new Set(entries.map((entry) => owners.get(entry)).filter((owner) => typeof owner === "string"));
+      if (entryOwners.size === 1) owners.set("package.json", [...entryOwners][0]);
+      else if (loaded.graph.nodes.length === 1) owners.set("package.json", loaded.graph.nodes[0].id);
+      else if (typeof pkg.name === "string") diagnostics.push(`package.json is unowned; package boundary ${pkg.name} was not indexed`);
+    } catch {
+      diagnostics.push("package.json is unreadable or invalid; package boundary was not indexed");
+    }
+  }
+  const files = {};
+  const facts = [];
+  const extractors = opts.extractors ?? DEFAULT_EXTRACTORS;
+  let truncated = false;
+  for (const [path, nodeId] of [...owners.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    if (Object.keys(files).length >= MAX_BOUNDARY_FILES) {
+      truncated = true;
+      break;
+    }
+    if (nodeId === null) {
+      diagnostics.push(`ignored ambiguously owned file: ${path}`);
+      continue;
+    }
+    const real = containedRealPath(repoRoot, path);
+    if (!real) {
+      diagnostics.push(`ignored missing or out-of-repository file: ${path}`);
+      continue;
+    }
+    let contents;
+    try {
+      if (statSync3(real).size > (opts.fileCapBytes ?? DEFAULT_BOUNDARY_FILE_CAP_BYTES)) {
+        diagnostics.push(`ignored oversized boundary file: ${path}`);
+        continue;
+      }
+      contents = readFileSync9(real, "utf8");
+    } catch {
+      diagnostics.push(`ignored unreadable boundary file: ${path}`);
+      continue;
+    }
+    const hash2 = hashText(contents);
+    const cached = previousFiles[path];
+    const fileFacts = cached?.hash === hash2 && cached.nodeId === nodeId ? cached.facts : extractors.flatMap((extractor) => extractor(path, contents)).map((fact) => materializeFact(nodeId, path, fact));
+    files[path] = { hash: hash2, nodeId, facts: fileFacts };
+    for (const fact of fileFacts) {
+      if (facts.length >= MAX_BOUNDARY_FACTS) {
+        truncated = true;
+        break;
+      }
+      facts.push(fact);
+    }
+    if (truncated) break;
+  }
+  facts.sort(factOrder);
+  const fingerprint2 = canonicalHash(facts.map(({ id: _id, ...fact }) => fact));
+  const index = {
+    version: 1,
+    repositoryId: config.config.repositoryId,
+    graphHash,
+    generatedAt: (opts.now ?? (() => (/* @__PURE__ */ new Date()).toISOString()))(),
+    facts,
+    fingerprint: fingerprint2,
+    ...Object.keys(files).length ? { files } : {},
+    ...diagnostics.length ? { diagnostics: diagnostics.slice(0, 256) } : {},
+    ...truncated ? { truncated: true } : {}
+  };
+  const checked = validateBoundaryIndex(index);
+  if (!checked.ok) return { ok: false, reason: `invalid boundary index: ${checked.errors.join("; ")}` };
+  return withSyncMicroLock(join10(repoRoot, ".visflow", ".boundary-lock"), () => {
+    const current = loadGraph(repoRoot);
+    if (!current.ok) return { ok: false, reason: `graph unavailable: ${current.error.kind}` };
+    if (hashText(current.raw) !== graphHash) return { ok: false, reason: "graph changed during boundary refresh" };
+    const latest = readBoundaryIndex(repoRoot);
+    const unchanged = latest.ok && latest.value.repositoryId === index.repositoryId && latest.value.graphHash === graphHash && latest.value.fingerprint === fingerprint2 && Boolean(latest.value.truncated) === Boolean(index.truncated) && JSON.stringify(latest.value.diagnostics ?? []) === JSON.stringify(index.diagnostics ?? []);
+    if (unchanged) return { ok: true, index: latest.value, changed: false };
+    writeJsonAtomic(boundaryIndexPath(repoRoot), index);
+    return { ok: true, index, changed: true };
+  });
+}
+
+// src/workspace-reconcile/candidates.ts
+import { createHash as createHash3, randomUUID as randomUUID2 } from "node:crypto";
+
+// src/schema/candidate-schema.ts
+var MAX_WORKSPACE_CANDIDATES = 4096;
+var MAX_CANDIDATE_EVIDENCE = 32;
+var RefSchema = external_exports.object({
+  repositoryId: external_exports.string().uuid(),
+  nodeId: external_exports.string().min(1).max(1e3)
+});
+var EvidenceSchema2 = external_exports.object({
+  repositoryId: external_exports.string().uuid(),
+  path: external_exports.string().min(1).max(4e3).refine(isSafeWorkspaceRelativePath),
+  detail: external_exports.string().max(4e3).optional()
+});
+var CrossRepoCandidateSchema = external_exports.object({
+  id: external_exports.string().uuid(),
+  fingerprint: external_exports.string().regex(/^[a-f0-9]{64}$/),
+  kind: external_exports.enum(BOUNDARY_KINDS),
+  source: RefSchema,
+  target: RefSchema,
+  evidence: external_exports.array(EvidenceSchema2).min(1).max(MAX_CANDIDATE_EVIDENCE),
+  confidence: external_exports.enum(["high", "medium", "low"]),
+  explanation: external_exports.string().min(1).max(4e3),
+  status: external_exports.enum(["pending", "dismissed"]),
+  firstSeenAt: external_exports.string().datetime(),
+  lastSeenAt: external_exports.string().datetime()
+});
+var CandidateStoreSchema = external_exports.object({
+  version: external_exports.literal(1),
+  candidates: external_exports.array(CrossRepoCandidateSchema).max(MAX_WORKSPACE_CANDIDATES).default([])
+});
+function validateCandidateStore(data) {
+  const parsed = CandidateStoreSchema.safeParse(data);
+  if (!parsed.success) return {
+    ok: false,
+    errors: parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+  };
+  const ids = /* @__PURE__ */ new Set();
+  const fingerprints = /* @__PURE__ */ new Set();
+  const errors = [];
+  for (const candidate of parsed.data.candidates) {
+    if (ids.has(candidate.id)) errors.push(`Duplicate candidate id: ${candidate.id}`);
+    if (fingerprints.has(candidate.fingerprint)) errors.push(`Duplicate candidate fingerprint: ${candidate.fingerprint}`);
+    ids.add(candidate.id);
+    fingerprints.add(candidate.fingerprint);
+    if (candidate.source.repositoryId === candidate.target.repositoryId) {
+      errors.push(`Candidate ${candidate.id} must cross repositories.`);
+    }
+  }
+  return errors.length ? { ok: false, errors } : { ok: true, value: parsed.data };
+}
+
+// src/workspace-reconcile/candidate-store.ts
+import { readFileSync as readFileSync10 } from "node:fs";
+import { join as join11 } from "node:path";
+var candidatesPath = (workspaceRoot) => join11(workspaceDir(workspaceRoot), "candidates.json");
+function readCandidateStore(workspaceRoot) {
+  let raw;
+  try {
+    raw = readFileSync10(candidatesPath(workspaceRoot), "utf8");
+  } catch {
+    return { ok: true, value: { version: 1, candidates: [] }, raw: null };
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    return { ok: false, errors: [error.message] };
+  }
+  const checked = validateCandidateStore(parsed);
+  return checked.ok ? { ok: true, value: checked.value, raw } : checked;
+}
+function writeCandidateStore(workspaceRoot, store) {
+  const checked = validateCandidateStore(store);
+  if (!checked.ok) throw new Error(`Invalid workspace candidates: ${checked.errors.join("; ")}`);
+  writeJsonAtomic(candidatesPath(workspaceRoot), checked.value);
+}
+function mergeCandidateStore(previous, discovered, opts) {
+  const byFingerprint = new Map(previous.candidates.map((candidate) => [candidate.fingerprint, candidate]));
+  const next = [];
+  for (const item of discovered) {
+    const existing = byFingerprint.get(item.fingerprint);
+    next.push(existing ? { ...item, id: existing.id, status: existing.status, firstSeenAt: existing.firstSeenAt, lastSeenAt: opts.now } : { ...item, id: opts.createId(), status: "pending", firstSeenAt: opts.now, lastSeenAt: opts.now });
+  }
+  for (const candidate of previous.candidates) {
+    if (candidate.status === "dismissed" && !next.some((item) => item.fingerprint === candidate.fingerprint)) {
+      next.push(candidate);
+    }
+  }
+  return { version: 1, candidates: next.sort((a, b) => a.fingerprint.localeCompare(b.fingerprint)) };
+}
+
+// src/workspace-reconcile/candidates.ts
+import { createHash as hash } from "node:crypto";
+var fingerprint = (value) => createHash3("sha256").update(JSON.stringify(value)).digest("hex");
+var evidenceFor = (fact) => fact.evidence.map((evidence) => ({
+  repositoryId: fact.repositoryId,
+  path: evidence.path,
+  ...evidence.detail ? { detail: evidence.detail } : {}
+}));
+var refFor = (fact) => ({
+  repositoryId: fact.repositoryId,
+  nodeId: fact.nodeId
+});
+var evidenceKey = (evidence) => JSON.stringify([evidence.repositoryId, evidence.path, evidence.detail ?? ""]);
+function confidence(kind, providerCount, consumerCount) {
+  if (providerCount > 1 || consumerCount > 16) return "low";
+  if (kind === "event" || kind === "deployment") return "medium";
+  return "high";
+}
+function joinBoundaryCandidates(indexes) {
+  const buckets = /* @__PURE__ */ new Map();
+  const aggregated = /* @__PURE__ */ new Map();
+  const diagnostics = [];
+  for (const index of indexes) {
+    if (index.truncated) diagnostics.push(`Boundary index for ${index.repositoryId} was truncated.`);
+    for (const fact of index.facts) {
+      const identity = JSON.stringify([index.repositoryId, fact.nodeId, fact.kind, fact.direction, fact.key]);
+      const existing = aggregated.get(identity);
+      if (!existing) aggregated.set(identity, { ...fact, repositoryId: index.repositoryId });
+      else existing.evidence = [...existing.evidence, ...fact.evidence].filter((item, position, all) => all.findIndex((other) => other.path === item.path && (other.detail ?? "") === (item.detail ?? "")) === position);
+    }
+  }
+  for (const fact of aggregated.values()) {
+    const bucket = buckets.get(fact.key) ?? [];
+    bucket.push(fact);
+    buckets.set(fact.key, bucket);
+  }
+  const candidates = /* @__PURE__ */ new Map();
+  let truncated = false;
+  let candidateCapReached = false;
+  for (const [key, facts] of [...buckets.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    const consumers = facts.filter((fact) => fact.direction === "consumes");
+    const providers = facts.filter((fact) => fact.direction === "provides");
+    for (const consumer of consumers) {
+      for (const provider of providers) {
+        if (consumer.repositoryId === provider.repositoryId) continue;
+        const source = refFor(consumer);
+        const target = refFor(provider);
+        const allEvidence = [...evidenceFor(consumer), ...evidenceFor(provider)].filter((item, index, all) => all.findIndex((other) => evidenceKey(other) === evidenceKey(item)) === index).sort((a, b) => evidenceKey(a).localeCompare(evidenceKey(b)));
+        if (allEvidence.length > MAX_CANDIDATE_EVIDENCE) truncated = true;
+        const evidence = allEvidence.slice(0, MAX_CANDIDATE_EVIDENCE);
+        const identity = { kind: consumer.kind, source, target, evidence };
+        const fp = fingerprint(identity);
+        const existing = candidates.get(fp);
+        if (existing) continue;
+        if (candidates.size >= MAX_WORKSPACE_CANDIDATES) {
+          truncated = true;
+          candidateCapReached = true;
+          break;
+        }
+        candidates.set(fp, {
+          fingerprint: fp,
+          kind: consumer.kind,
+          source,
+          target,
+          evidence,
+          confidence: confidence(consumer.kind, providers.length, consumers.length),
+          explanation: `${consumer.nodeId} consumes ${key}; ${provider.nodeId} provides it.`
         });
-        continue;
       }
-      if (shouldReconcile({ events: events2 }) || hasTargets2 || hasRecovery2) {
-        dirty.push(member.member.repositoryId);
-        continue;
+      if (candidateCapReached) break;
+    }
+    if (candidateCapReached) break;
+  }
+  if (truncated) diagnostics.push(`Candidate results were truncated at ${MAX_WORKSPACE_CANDIDATES}.`);
+  return { candidates: [...candidates.values()].sort((a, b) => a.fingerprint.localeCompare(b.fingerprint)), truncated, diagnostics };
+}
+function loadFreshIndexes(workspace, refresh) {
+  const indexes = [];
+  const diagnostics = [];
+  for (const member of workspace.members) {
+    if (member.status !== "ready" || !member.repoRoot || !member.graphRaw) {
+      diagnostics.push(`${member.member.alias}: member is ${member.status}`);
+      continue;
+    }
+    if (refresh) refreshBoundaryIndex(member.repoRoot);
+    const index = readBoundaryIndex(member.repoRoot);
+    const graphHash = hash("sha256").update(member.graphRaw).digest("hex");
+    if (!index.ok || index.value.repositoryId !== member.member.repositoryId || index.value.graphHash !== graphHash) {
+      diagnostics.push(`${member.member.alias}: boundary index is missing or stale`);
+      continue;
+    }
+    indexes.push(index.value);
+  }
+  return { indexes, diagnostics };
+}
+function collectWorkspaceBoundaryCandidates(workspaceRoot, opts = {}) {
+  const loaded = loadWorkspace(workspaceRoot);
+  if (!loaded.ok) return { ok: false, reason: loaded.error.messages.join("; ") };
+  const scoped = opts.eligibleRepositoryIds ? {
+    ...loaded.workspace,
+    members: loaded.workspace.members.map((member) => opts.eligibleRepositoryIds.has(member.member.repositoryId) ? member : { ...member, status: "unlocated", graph: void 0, graphRaw: void 0, repoRoot: void 0 })
+  } : loaded.workspace;
+  const fresh = loadFreshIndexes(scoped, opts.refreshBoundary !== false);
+  return {
+    ok: true,
+    workspace: loaded.workspace,
+    joined: joinBoundaryCandidates(fresh.indexes),
+    diagnostics: fresh.diagnostics
+  };
+}
+async function persistWorkspaceCandidates(workspaceRoot, discovered, opts = {}) {
+  return withStateLock(workspaceDir(workspaceRoot), () => {
+    const loaded = loadWorkspace(workspaceRoot);
+    if (!loaded.ok) return { ok: false, reason: loaded.error.messages.join("; ") };
+    const state = readCandidateStore(workspaceRoot);
+    if (!state.ok) return { ok: false, reason: `candidate state is invalid: ${state.errors.join("; ")}` };
+    const existingPairs = new Set(loaded.workspace.file.links.map((link) => JSON.stringify([
+      link.source.repositoryId,
+      link.source.nodeId,
+      link.target.repositoryId,
+      link.target.nodeId
+    ])));
+    const netNew = discovered.filter((candidate) => !existingPairs.has(JSON.stringify([
+      candidate.source.repositoryId,
+      candidate.source.nodeId,
+      candidate.target.repositoryId,
+      candidate.target.nodeId
+    ])));
+    const now = (opts.now ?? (() => (/* @__PURE__ */ new Date()).toISOString()))();
+    const store = mergeCandidateStore(state.value, netNew, {
+      now,
+      createId: opts.createId ?? randomUUID2
+    });
+    writeCandidateStore(workspaceRoot, store);
+    const fingerprints = new Set(netNew.map((candidate) => candidate.fingerprint));
+    return {
+      ok: true,
+      store,
+      discovered: store.candidates.filter((candidate) => fingerprints.has(candidate.fingerprint))
+    };
+  });
+}
+
+// src/workspace-reconcile/review.ts
+import { createHash as createHash4 } from "node:crypto";
+
+// src/workspace-reconcile/state.ts
+import { join as join12 } from "node:path";
+
+// src/schema/reconcile-state-schema.ts
+var MemberFingerprintSchema = external_exports.object({
+  graphHash: external_exports.string().regex(/^[a-f0-9]{64}$/),
+  boundaryFingerprint: external_exports.string().regex(/^[a-f0-9]{64}$/)
+});
+var WorkspaceReconcileStateSchema = external_exports.object({
+  version: external_exports.literal(1),
+  phase: external_exports.enum(["idle", "members", "links", "review", "partial", "error", "cancelled"]),
+  members: external_exports.record(external_exports.string().uuid(), MemberFingerprintSchema).default({}),
+  pendingCandidates: external_exports.number().int().nonnegative().default(0),
+  lastRunAt: external_exports.string().datetime().optional(),
+  lastReason: external_exports.string().max(8e3).optional()
+});
+
+// src/workspace-reconcile/state.ts
+var workspaceReconcileStatePath = (root) => join12(workspaceDir(root), ".reconcile-state.json");
+function writeWorkspaceReconcileState(root, state) {
+  const parsed = WorkspaceReconcileStateSchema.safeParse(state);
+  if (!parsed.success) throw new Error(`Invalid workspace reconcile state: ${parsed.error.message}`);
+  writeJsonAtomic(workspaceReconcileStatePath(root), parsed.data);
+}
+
+// src/workspace-reconcile/review.ts
+function sameEndpoint(left, candidate) {
+  return left.source.repositoryId === candidate.source.repositoryId && left.source.nodeId === candidate.source.nodeId && left.target.repositoryId === candidate.target.repositoryId && left.target.nodeId === candidate.target.nodeId;
+}
+async function reconcileApprovedWorkspaceLinks(workspaceRoot, candidates, expectedWorkspaceRaw, expectedMembers) {
+  return withStateLock(workspaceDir(workspaceRoot), () => {
+    const current = readWorkspaceFile(workspaceRoot);
+    if (!current.ok) return { ok: false, reason: current.errors.join("; ") };
+    if (expectedWorkspaceRaw !== void 0 && current.raw !== expectedWorkspaceRaw) {
+      return { ok: false, reason: "stale-snapshot" };
+    }
+    const loaded = loadWorkspace(workspaceRoot);
+    if (!loaded.ok) return { ok: false, reason: loaded.error.messages.join("; ") };
+    if (expectedMembers) {
+      for (const [repositoryId, expected] of Object.entries(expectedMembers)) {
+        const member = loaded.workspace.members.find((item) => item.member.repositoryId === repositoryId);
+        const boundary = member?.repoRoot ? readBoundaryIndex(member.repoRoot) : void 0;
+        const graphHash = member?.graphRaw ? createHash4("sha256").update(member.graphRaw).digest("hex") : void 0;
+        if (!member || member.status !== "ready" || graphHash !== expected.graphHash || !boundary?.ok || boundary.value.fingerprint !== expected.boundaryFingerprint || boundary.value.graphHash !== graphHash) return { ok: false, reason: "stale-snapshot" };
       }
-      if (events2.length > 0) {
-        try {
-          deps.drainEvents(member.repoRoot).commit();
-          docsConsumed += events2.length;
-          writeSkip(member.repoRoot, (deps.now ?? (() => (/* @__PURE__ */ new Date()).toISOString()))(), `docs-only (${events2.length} event(s) consumed)`);
-        } catch {
+    }
+    let changed = 0;
+    const links = current.value.links.map((link) => {
+      if (link.managedBy === "user") return link;
+      const exact = candidates.find((candidate) => sameEndpoint(link, candidate));
+      if (exact) {
+        const next = {
+          ...link,
+          what: exact.kind,
+          why: exact.explanation,
+          evidence: exact.evidence
+        };
+        if (JSON.stringify(next) !== JSON.stringify(link)) changed++;
+        return next;
+      }
+      const resolved = loaded.workspace.links.find((entry) => entry.link.id === link.id)?.status;
+      if (resolved !== "source-node-missing" && resolved !== "target-node-missing") return link;
+      const sameKind = candidates.filter((candidate) => candidate.kind === link.what);
+      const sourceMatches = sameKind.filter((candidate) => candidate.source.repositoryId === link.source.repositoryId && candidate.source.nodeId === link.source.nodeId && candidate.target.repositoryId === link.target.repositoryId);
+      const targetMatches = sameKind.filter((candidate) => candidate.target.repositoryId === link.target.repositoryId && candidate.target.nodeId === link.target.nodeId && candidate.source.repositoryId === link.source.repositoryId);
+      const replacement = resolved === "target-node-missing" && sourceMatches.length === 1 ? sourceMatches[0] : resolved === "source-node-missing" && targetMatches.length === 1 ? targetMatches[0] : void 0;
+      if (!replacement) return link;
+      changed++;
+      return {
+        ...link,
+        source: replacement.source,
+        target: replacement.target,
+        why: replacement.explanation,
+        evidence: replacement.evidence
+      };
+    });
+    if (changed > 0) writeWorkspaceFile(workspaceRoot, { ...current.value, links });
+    return { ok: true, changed };
+  });
+}
+
+// src/workspace-reconcile/repository-settle.ts
+import { existsSync as existsSync4 } from "node:fs";
+import { join as join14 } from "node:path";
+
+// src/llm/run.ts
+import { spawn } from "node:child_process";
+var DEFAULT_MODEL = "haiku";
+function buildClaudeArgs(opts) {
+  return [
+    "-p",
+    "--output-format",
+    "json",
+    "--model",
+    opts.model,
+    // One-shot scoped passes (C6): everything the pass may see is inlined in the prompt, so the
+    // tool loop — each round-trip re-billing the growing context — is dropped entirely.
+    // Otherwise, scoped passes read ONLY the projected files: Grep/Glob latitude let a 2-file
+    // scoped pass rebuild the whole map at 12x cost (dogfood OBS 1). Full passes legitimately explore.
+    "--tools",
+    opts.oneShot ? "" : opts.mode === "scoped" ? "Read" : "Read,Grep,Glob",
+    "--disallowedTools",
+    "Edit",
+    "Write",
+    "Bash",
+    "mcp__*",
+    "--permission-mode",
+    "dontAsk",
+    "--strict-mcp-config",
+    "--no-session-persistence",
+    // config isolation so the spawned run does NOT re-load our plugin hooks:
+    ...opts.byok ? ["--bare"] : ["--safe-mode"]
+  ];
+}
+var DEFAULT_MAX_THINKING_TOKENS = "1024";
+function buildClaudeEnv(base, opts = {}) {
+  const env = { ...base, VISFLOW_RECONCILING: "1" };
+  if (opts.byokKey) env.ANTHROPIC_API_KEY = opts.byokKey;
+  const cap = base.VISFLOW_MAX_THINKING_TOKENS || DEFAULT_MAX_THINKING_TOKENS;
+  if (cap === "0" || cap.toLowerCase() === "off") delete env.MAX_THINKING_TOKENS;
+  else env.MAX_THINKING_TOKENS = cap;
+  return env;
+}
+function parseClaudeEnvelope(stdout) {
+  let env;
+  try {
+    env = JSON.parse(stdout);
+  } catch {
+    return null;
+  }
+  if (!env || typeof env !== "object") return null;
+  return {
+    text: typeof env.result === "string" ? env.result : "",
+    costUsd: typeof env.total_cost_usd === "number" ? env.total_cost_usd : null,
+    isError: env.is_error === true
+  };
+}
+function topLevelObjects(text) {
+  const objs = [];
+  let i = 0;
+  while (i < text.length) {
+    const start = text.indexOf("{", i);
+    if (start < 0) break;
+    let depth = 0, end = -1, inStr = false, esc = false;
+    for (let j = start; j < text.length; j++) {
+      const ch = text[j];
+      if (inStr) {
+        if (esc) esc = false;
+        else if (ch === "\\") esc = true;
+        else if (ch === '"') inStr = false;
+      } else if (ch === '"') inStr = true;
+      else if (ch === "{") depth++;
+      else if (ch === "}") {
+        depth--;
+        if (depth === 0) {
+          end = j + 1;
+          break;
         }
       }
     }
-    if (dirty.length === 0) return {
-      spawned: false,
-      reason: docsConsumed ? `gate: skipped (${docsConsumed} non-code event(s) consumed)` : "gate: skipped"
-    };
-    if (!deps.spawnWorkspaceReconcile) return { spawned: false, reason: "workspace supervisor unavailable" };
-    deps.spawnWorkspaceReconcile(context.workspaceRoot, dirty);
-    return { spawned: true, reason: `spawned workspace supervisor for ${dirty.length} member(s)` };
+    if (end < 0) break;
+    objs.push(text.slice(start, end));
+    i = end;
   }
-  const repoRoot = context.kind === "repository" ? context.repoRoot : cwd;
-  const events = deps.readEvents(repoRoot);
-  const targets = (deps.readTargets ?? readTargets)(repoRoot);
-  const hasTargets = targets.nodeIds.length > 0 || targets.files.length > 0;
-  const recoverableEvents = hasRecoverableEventDrains(repoRoot);
-  const recoverableTargets = hasRecoverableTargetDrains(repoRoot);
-  const hasRecovery = recoverableEvents || recoverableTargets;
-  const actionable = shouldReconcile({ events }) || hasTargets || hasRecovery;
-  if ((events.length > 0 || hasTargets || hasRecovery) && liveRunGuard(repoRoot)) {
-    writeLivePassSkip(repoRoot, (deps.now ?? (() => (/* @__PURE__ */ new Date()).toISOString()))(), {
-      events: events.length,
-      targets: targets.nodeIds.length + targets.files.length,
-      recoverableEvents,
-      recoverableTargets
-    });
-    return { spawned: false, reason: "gate: skipped (pass running; queue left)" };
-  }
-  if (!actionable) {
-    if (events.length > 0) {
-      const ts = (deps.now ?? (() => (/* @__PURE__ */ new Date()).toISOString()))();
-      try {
-        deps.drainEvents(repoRoot).commit();
-      } catch {
-        return { spawned: false, reason: "gate: skipped (drain failed; queue left for next turn)" };
-      }
-      writeSkip(repoRoot, ts, `docs-only (${events.length} event(s) consumed)`);
-      return { spawned: false, reason: `gate: skipped (${events.length} non-code event(s) consumed)` };
-    }
-    return { spawned: false, reason: "gate: skipped" };
-  }
-  deps.spawnReconcile(repoRoot);
-  return { spawned: true, reason: "spawned" };
+  return objs;
 }
-function spawnReconcileDetached(repoRoot) {
-  const reconcileEntry = join12(dirname4(fileURLToPath2(import.meta.url)), "..", "reconcile", "index.js");
-  const child = spawn(process.execPath, [reconcileEntry], {
-    cwd: repoRoot,
-    env: { ...process.env, VISFLOW_RECONCILING: "1" },
-    detached: true,
-    stdio: "ignore"
-  });
-  child.unref();
-}
-function spawnWorkspaceReconcileDetached(workspaceRoot, repositoryIds) {
-  const entry = join12(dirname4(fileURLToPath2(import.meta.url)), "..", "workspace-reconcile", "entry.js");
-  const child = spawn(process.execPath, [entry, workspaceRoot, "session-stop", repositoryIds.join(",")], {
-    cwd: workspaceRoot,
-    env: { ...process.env, VISFLOW_RECONCILING: "1" },
-    detached: true,
-    stdio: "ignore"
-  });
-  child.unref();
-}
-function main() {
-  try {
-    let raw = "";
+function extractProposal(text) {
+  let last = null;
+  let lastSubstantive = null;
+  for (const raw of topLevelObjects(text)) {
+    let obj;
     try {
-      raw = readFileSync11(0, "utf8");
+      obj = JSON.parse(raw);
     } catch {
+      continue;
+    }
+    if (!obj || typeof obj !== "object" || !Array.isArray(obj.upsert)) continue;
+    const p = {
+      upsert: obj.upsert,
+      remove: Array.isArray(obj.remove) ? obj.remove : [],
+      decisionMoves: Array.isArray(obj.decisionMoves) ? obj.decisionMoves : [],
+      groupUpsert: Array.isArray(obj.groupUpsert) ? obj.groupUpsert : []
+    };
+    last = p;
+    if (p.upsert.length > 0 || p.remove.length > 0 || p.decisionMoves.length > 0 || (p.groupUpsert?.length ?? 0) > 0) lastSubstantive = p;
+  }
+  return lastSubstantive ?? last;
+}
+function withStderr(reason, stderr, max = 2048) {
+  const tail = stderr.trim().slice(-max);
+  return tail ? `${reason} | stderr: ${tail}` : reason;
+}
+function withResultTail(reason, text, max = 800) {
+  const tail = text.trim().slice(-max);
+  return tail ? `${reason} | result tail: ${tail}` : reason;
+}
+function parseReconcileTimeoutMs(value) {
+  if (!value || !/^[1-9]\d*$/.test(value)) return null;
+  const ms = Number(value);
+  return Number.isSafeInteger(ms) ? ms : null;
+}
+var MAX_TIMER_DELAY_MS = 2147483647;
+var TERMINATE_GRACE_MS = 2e3;
+function scheduleTimeout(fn, delayMs) {
+  let remaining = delayMs;
+  let timer;
+  const scheduleNext = () => {
+    const chunk = Math.min(remaining, MAX_TIMER_DELAY_MS);
+    timer = setTimeout(() => {
+      remaining -= chunk;
+      if (remaining > 0) scheduleNext();
+      else fn();
+    }, chunk);
+  };
+  scheduleNext();
+  return () => {
+    if (timer) clearTimeout(timer);
+  };
+}
+function claudeCliRunnerWith(spawnImpl) {
+  return (input) => new Promise((resolve3) => {
+    if (input.signal?.aborted) {
+      resolve3({ ok: false, kind: "cancelled", reason: "claude reconcile cancelled" });
       return;
     }
-    handleStop(raw, process.env, {
-      spawnReconcile: spawnReconcileDetached,
-      spawnWorkspaceReconcile: spawnWorkspaceReconcileDetached,
-      readEvents,
-      drainEvents
+    const byok = !!input.byokKey;
+    const args = buildClaudeArgs({ model: input.model ?? DEFAULT_MODEL, byok, mode: input.mode, oneShot: input.oneShot });
+    const env = buildClaudeEnv(process.env, { byokKey: input.byokKey });
+    let child;
+    try {
+      child = spawnImpl("claude", args, { cwd: input.repoRoot, env, stdio: ["pipe", "pipe", "pipe"] });
+    } catch {
+      resolve3({ ok: false, reason: "claude CLI not found or failed to spawn" });
+      return;
+    }
+    let out = "";
+    let err = "";
+    let settled = false;
+    let closed = false;
+    let interruption = null;
+    let cancelRunTimeout;
+    let cancelKillTimeout;
+    const onAbort = () => terminate("cancelled");
+    const cleanup = () => {
+      cancelRunTimeout?.();
+      cancelKillTimeout?.();
+      input.signal?.removeEventListener("abort", onAbort);
+    };
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve3(result);
+    };
+    const terminate = (kind) => {
+      if (settled || closed || interruption) return;
+      interruption = kind;
+      try {
+        child.kill("SIGTERM");
+      } catch {
+      }
+      if (!closed) {
+        cancelKillTimeout = scheduleTimeout(() => {
+          if (closed) return;
+          try {
+            child.kill("SIGKILL");
+          } catch {
+          }
+        }, TERMINATE_GRACE_MS);
+      }
+    };
+    child.stdout.on("data", (c) => {
+      out += c.toString();
     });
+    child.stderr.on("data", (c) => {
+      err = (err + c.toString()).slice(-4096);
+    });
+    child.on("error", () => {
+      if (!interruption) finish({ ok: false, reason: withStderr("claude CLI not found or failed to spawn", err) });
+    });
+    child.on("close", () => {
+      closed = true;
+      if (interruption) {
+        const reason = interruption === "cancelled" ? "claude reconcile cancelled" : "claude reconcile timed out";
+        finish({ ok: false, kind: interruption, reason: withStderr(reason, err) });
+        return;
+      }
+      const envlp = parseClaudeEnvelope(out);
+      if (!envlp || envlp.isError) return finish({ ok: false, reason: withStderr(`claude -p error: ${envlp ? "error subtype" : "unparseable output"}`, err) });
+      const proposal = extractProposal(envlp.text);
+      if (!proposal) return finish({ ok: false, reason: withStderr(withResultTail("no valid proposal in result", envlp.text), err) });
+      finish({ ok: true, proposal, costUsd: envlp.costUsd, raw: out });
+    });
+    child.stdin.on("error", () => {
+      if (!interruption) finish({ ok: false, reason: withStderr("claude exited before reading the prompt (stdin error)", err) });
+    });
+    input.signal?.addEventListener("abort", onAbort, { once: true });
+    const timeoutMs = parseReconcileTimeoutMs(process.env.VISFLOW_RECONCILE_TIMEOUT_MS);
+    if (timeoutMs !== null) cancelRunTimeout = scheduleTimeout(() => terminate("timeout"), timeoutMs);
+    child.stdin.write(input.prompt);
+    child.stdin.end();
+  });
+}
+var claudeCliRunner = claudeCliRunnerWith(spawn);
+
+// src/workspace-reconcile/repository-settle.ts
+import { runReconcile, hasPendingReconcileWork } from "../reconcile/index.js";
+
+// src/workspace-reconcile/global-limiter.ts
+import { mkdirSync as mkdirSync5, writeFileSync as writeFileSync5 } from "node:fs";
+import { join as join13 } from "node:path";
+import { tmpdir } from "node:os";
+import { randomUUID as randomUUID3 } from "node:crypto";
+var sleep2 = (ms) => new Promise((resolve3) => setTimeout(resolve3, ms));
+var globalLimiterDir = () => join13(
+  tmpdir(),
+  `visflow-${typeof process.getuid === "function" ? process.getuid() : "user"}`,
+  "model-leases"
+);
+function globalModelConcurrency(value = process.env.VISFLOW_MODEL_CONCURRENCY) {
+  const parsed = value === void 0 ? 2 : Number(value);
+  return Number.isInteger(parsed) ? Math.max(1, Math.min(8, parsed)) : 2;
+}
+async function withGlobalModelLease(fn, opts = {}) {
+  const capacity = opts.capacity ?? globalModelConcurrency();
+  const dir = opts.dir ?? globalLimiterDir();
+  const pollMs = opts.pollMs ?? 50;
+  const deadline = Date.now() + (opts.timeoutMs ?? 12e4);
+  const staleMs = opts.staleMs ?? 10 * 6e4;
+  mkdirSync5(dir, { recursive: true });
+  let owned = null;
+  while (!owned && Date.now() <= deadline) {
+    for (let slot = 0; slot < capacity; slot++) {
+      const path = join13(dir, `slot-${slot}`);
+      const raw = JSON.stringify({ version: 1, pid: process.pid, token: randomUUID3() });
+      try {
+        writeFileSync5(path, raw, { flag: "wx" });
+        owned = { path, raw };
+        break;
+      } catch {
+        if (isStalePidFile(path, staleMs)) stealPidFile(path);
+      }
+    }
+    if (!owned) await sleep2(pollMs);
+  }
+  if (!owned) throw new Error("Timed out waiting for a VisFlow model-work slot.");
+  const lease = setInterval(() => touchPidFile(owned.path), Math.max(1e3, Math.floor(staleMs / 5)));
+  lease.unref();
+  try {
+    return await fn();
+  } finally {
+    clearInterval(lease);
+    releaseOwnedPidFile(owned.path, owned.raw);
+  }
+}
+
+// src/workspace-reconcile/repository-settle.ts
+var sleep3 = (ms) => new Promise((resolve3) => setTimeout(resolve3, ms));
+var guardPath = (repoRoot) => join14(repoRoot, ".visflow", ".reconcile-running");
+function repositoryReconcileIsLive(repoRoot) {
+  const path = guardPath(repoRoot);
+  if (!existsSync4(path)) return false;
+  if (isStalePidFile(path, GUARD_TTL_MS)) {
+    stealPidFile(path);
+    return existsSync4(path);
+  }
+  return true;
+}
+async function settleRepository(repoRoot, opts = {}) {
+  const run = opts.run ?? runReconcile;
+  const baseLlm = opts.llm ?? claudeCliRunner;
+  const limitedLlm = (input) => withGlobalModelLease(() => baseLlm(input));
+  const deadline = Date.now() + (opts.timeoutMs ?? 12e4);
+  const pollMs = opts.pollMs ?? 50;
+  let force = opts.force;
+  for (; ; ) {
+    if (opts.signal?.aborted) return { ok: false, applied: false, reason: "cancelled" };
+    const result = await run(repoRoot, { force, llm: limitedLlm, signal: opts.signal });
+    if (result.reason !== "already-running") {
+      const boundary = refreshBoundaryIndex(repoRoot);
+      return boundary.ok ? { ok: true, applied: result.applied, reason: result.reason } : { ok: false, applied: result.applied, reason: `boundary index: ${boundary.reason}` };
+    }
+    while (repositoryReconcileIsLive(repoRoot) && Date.now() < deadline) {
+      if (opts.signal?.aborted) return { ok: false, applied: false, reason: "cancelled" };
+      await sleep3(pollMs);
+    }
+    if (repositoryReconcileIsLive(repoRoot)) return { ok: false, applied: false, reason: "timed out waiting for repository reconciliation" };
+    if (!hasPendingReconcileWork(repoRoot)) {
+      const boundary = refreshBoundaryIndex(repoRoot);
+      return boundary.ok ? { ok: true, applied: false, reason: "settled by another session" } : { ok: false, applied: false, reason: `boundary index: ${boundary.reason}` };
+    }
+    force = false;
+  }
+}
+async function waitForRepositorySettlement(repoRoot, opts = {}) {
+  const deadline = Date.now() + (opts.timeoutMs ?? 12e4);
+  const pollMs = opts.pollMs ?? 50;
+  while (repositoryReconcileIsLive(repoRoot) && Date.now() < deadline) {
+    if (opts.signal?.aborted) return { ok: false, applied: false, reason: "cancelled" };
+    await sleep3(pollMs);
+  }
+  if (repositoryReconcileIsLive(repoRoot)) return { ok: false, applied: false, reason: "timed out waiting for repository reconciliation" };
+  if (hasPendingReconcileWork(repoRoot)) return settleRepository(repoRoot, { force: false, signal: opts.signal, timeoutMs: Math.max(0, deadline - Date.now()) });
+  const boundary = refreshBoundaryIndex(repoRoot);
+  return boundary.ok ? { ok: true, applied: false, reason: "settled" } : { ok: false, applied: false, reason: `boundary index: ${boundary.reason}` };
+}
+
+// src/workspace-reconcile/worker-pool.ts
+async function runBounded(items, concurrency, worker) {
+  if (!Number.isInteger(concurrency) || concurrency < 1) throw new Error("Worker concurrency must be a positive integer.");
+  const results = new Array(items.length);
+  let cursor = 0;
+  const run = async () => {
+    for (; ; ) {
+      const index = cursor++;
+      if (index >= items.length) return;
+      results[index] = await worker(items[index], index);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, run));
+  return results;
+}
+function repositoryConcurrency(value = process.env.VISFLOW_REPO_CONCURRENCY) {
+  const parsed = value === void 0 ? 3 : Number(value);
+  return Number.isInteger(parsed) ? Math.max(1, Math.min(8, parsed)) : 3;
+}
+
+// src/workspace-reconcile/cancel.ts
+import { existsSync as existsSync5, readFileSync as readFileSync11, rmSync as rmSync3 } from "node:fs";
+import { join as join15 } from "node:path";
+var requestPath = (root) => join15(workspaceDir(root), ".reconcile-cancel.json");
+function readRequest(root) {
+  try {
+    const value = JSON.parse(readFileSync11(requestPath(root), "utf8"));
+    return value.version === 1 && typeof value.token === "string" && typeof value.requestedAt === "string" ? value : null;
+  } catch {
+    return null;
+  }
+}
+function watchWorkspaceCancellation(root, token, controller) {
+  const poll = () => {
+    if (!controller.signal.aborted && readRequest(root)?.token === token) controller.abort("workspace reconciliation cancelled");
+  };
+  poll();
+  const timer = setInterval(poll, 200);
+  timer.unref();
+  return () => clearInterval(timer);
+}
+function clearOwnedWorkspaceCancellation(root, token) {
+  try {
+    if (readRequest(root)?.token === token) rmSync3(requestPath(root), { force: true });
   } catch {
   }
 }
-if (isMain(import.meta.url)) main();
+
+// src/workspace-reconcile/requests.ts
+import { randomUUID as randomUUID4 } from "node:crypto";
+import { readFileSync as readFileSync12, rmSync as rmSync4 } from "node:fs";
+import { join as join16 } from "node:path";
+var MAX_QUEUED_TRIGGERS = 1024;
+var requestPath2 = (root) => join16(workspaceDir(root), ".reconcile-requests.json");
+function readFile(root) {
+  try {
+    const raw = readFileSync12(requestPath2(root), "utf8");
+    const value = JSON.parse(raw);
+    if (value.version !== 1 || !Array.isArray(value.requests)) return null;
+    const valid = value.requests.every((request) => request && typeof request.id === "string" && typeof request.allMembers === "boolean" && Array.isArray(request.repositoryIds) && request.repositoryIds.every((id) => typeof id === "string") && typeof request.reconcileMembers === "boolean" && typeof request.forceMembers === "boolean");
+    return valid ? { value, raw } : null;
+  } catch {
+    return null;
+  }
+}
+function fromTrigger(trigger) {
+  if (trigger.kind === "explicit-sync") return {
+    allMembers: trigger.repositoryIds === void 0,
+    repositoryIds: trigger.repositoryIds ?? [],
+    reconcileMembers: trigger.linksOnly !== true,
+    forceMembers: trigger.linksOnly !== true
+  };
+  return {
+    allMembers: false,
+    repositoryIds: trigger.dirtyRepositoryIds,
+    reconcileMembers: trigger.kind === "session-stop",
+    forceMembers: false
+  };
+}
+function merge(requests) {
+  return {
+    allMembers: requests.some((request) => request.allMembers),
+    repositoryIds: [...new Set(requests.flatMap((request) => request.repositoryIds))].sort(),
+    reconcileMembers: requests.some((request) => request.reconcileMembers),
+    forceMembers: requests.some((request) => request.forceMembers)
+  };
+}
+async function enqueueWorkspaceTrigger(root, trigger) {
+  await withStateLock(workspaceDir(root), () => {
+    const current = readFile(root)?.value ?? { version: 1, requests: [] };
+    const requests = [...current.requests, { id: randomUUID4(), ...fromTrigger(trigger) }].slice(-MAX_QUEUED_TRIGGERS);
+    writeJsonAtomic(requestPath2(root), { version: 1, requests });
+  });
+}
+function peekWorkspaceTrigger(root) {
+  const request = readFile(root);
+  if (!request || request.value.requests.length === 0) return null;
+  const value = merge(request.value.requests);
+  const repositoryIds = value.allMembers ? void 0 : value.repositoryIds;
+  const trigger = value.forceMembers ? { kind: "explicit-sync", repositoryIds, linksOnly: false } : value.reconcileMembers ? { kind: "session-stop", dirtyRepositoryIds: value.repositoryIds } : value.allMembers ? { kind: "explicit-sync", linksOnly: true } : { kind: "member-state-change", dirtyRepositoryIds: value.repositoryIds };
+  return { trigger, raw: request.raw };
+}
+async function completeWorkspaceTrigger(root, expectedRaw) {
+  let expected;
+  try {
+    expected = JSON.parse(expectedRaw);
+  } catch {
+    return Boolean(peekWorkspaceTrigger(root));
+  }
+  const covered = new Set(expected.requests.map((request) => request.id));
+  return withStateLock(workspaceDir(root), () => {
+    const current = readFile(root);
+    if (!current) return false;
+    const requests = current.value.requests.filter((request) => !covered.has(request.id));
+    if (requests.length === 0) {
+      try {
+        rmSync4(requestPath2(root), { force: true });
+      } catch {
+      }
+      return false;
+    }
+    writeJsonAtomic(requestPath2(root), { version: 1, requests });
+    return true;
+  });
+}
+
+// src/workspace-reconcile/supervisor.ts
+var hashText2 = (value) => createHash5("sha256").update(value).digest("hex");
+async function runWorkspaceSupervisor(workspaceRoot, trigger, opts = {}) {
+  const entitlement = checkEntitlementCached(process.env);
+  if (!entitlement.allowed) return {
+    ok: false,
+    reason: entitlement.refusal ?? "VisFlow: not licensed",
+    members: {},
+    candidates: 0,
+    linksChanged: 0
+  };
+  const writeState = (state) => withStateLock(workspaceDir(workspaceRoot), () => writeWorkspaceReconcileState(workspaceRoot, state));
+  await enqueueWorkspaceTrigger(workspaceRoot, trigger);
+  const guard = acquireStateRunGuard(workspaceDir(workspaceRoot), ".reconcile-running");
+  if (!guard.acquired) return {
+    ok: true,
+    reason: "already-running; trigger coalesced by active workspace",
+    alreadyRunning: true,
+    members: {},
+    candidates: 0,
+    linksChanged: 0
+  };
+  const queued = peekWorkspaceTrigger(workspaceRoot);
+  if (queued) trigger = queued.trigger;
+  const now = opts.now ?? (() => (/* @__PURE__ */ new Date()).toISOString());
+  const memberResults = {};
+  const controller = new AbortController();
+  const forwardAbort = () => controller.abort(opts.signal?.reason ?? "cancelled");
+  if (opts.signal?.aborted) forwardAbort();
+  else opts.signal?.addEventListener("abort", forwardAbort, { once: true });
+  const stopWatchingCancellation = watchWorkspaceCancellation(workspaceRoot, guard.token, controller);
+  const signal = controller.signal;
+  try {
+    const loaded = loadWorkspace(workspaceRoot);
+    if (!loaded.ok) {
+      await writeState({
+        version: 1,
+        phase: "error",
+        members: {},
+        pendingCandidates: 0,
+        lastRunAt: now(),
+        lastReason: loaded.error.messages.join("; ")
+      });
+      return { ok: false, reason: loaded.error.messages.join("; "), members: {}, candidates: 0, linksChanged: 0 };
+    }
+    const requested = new Set(
+      trigger.kind === "explicit-sync" ? trigger.repositoryIds ?? loaded.workspace.members.map((member) => member.member.repositoryId) : trigger.dirtyRepositoryIds
+    );
+    const selected = loaded.workspace.members.filter((member) => requested.has(member.member.repositoryId) && member.status === "ready" && member.repoRoot);
+    const unavailable = loaded.workspace.members.filter((member) => requested.has(member.member.repositoryId) && (member.status !== "ready" || !member.repoRoot));
+    for (const member of unavailable) memberResults[member.member.repositoryId] = {
+      ok: false,
+      applied: false,
+      reason: member.diagnostic ?? `member is ${member.status}`
+    };
+    await writeState({
+      version: 1,
+      phase: selected.length ? "members" : "links",
+      members: {},
+      pendingCandidates: 0,
+      lastRunAt: now()
+    });
+    const linksOnly = trigger.kind === "member-state-change" || trigger.kind === "explicit-sync" && trigger.linksOnly === true;
+    const settle = opts.deps?.settle ?? settleRepository;
+    const wait = opts.deps?.wait ?? waitForRepositorySettlement;
+    const results = await runBounded(selected, opts.concurrency ?? repositoryConcurrency(), async (member) => {
+      if (signal.aborted) return { ok: false, applied: false, reason: "cancelled" };
+      return linksOnly ? wait(member.repoRoot, { signal }) : settle(member.repoRoot, {
+        force: trigger.kind === "explicit-sync",
+        llm: opts.llm,
+        signal
+      });
+    });
+    selected.forEach((member, index) => {
+      memberResults[member.member.repositoryId] = results[index];
+    });
+    if (signal.aborted) {
+      await writeState({
+        version: 1,
+        phase: "cancelled",
+        members: {},
+        pendingCandidates: 0,
+        lastRunAt: now(),
+        lastReason: "workspace reconciliation cancelled"
+      });
+      return { ok: false, reason: "cancelled", members: memberResults, candidates: 0, linksChanged: 0 };
+    }
+    const reloaded = loadWorkspace(workspaceRoot);
+    if (!reloaded.ok) return { ok: false, reason: reloaded.error.messages.join("; "), members: memberResults, candidates: 0, linksChanged: 0 };
+    const failed = new Set(Object.entries(memberResults).filter(([, result]) => !result.ok).map(([id]) => id));
+    const eligible = new Set(reloaded.workspace.members.filter((member) => member.status === "ready" && !failed.has(member.member.repositoryId)).map((member) => member.member.repositoryId));
+    await writeState({
+      version: 1,
+      phase: "links",
+      members: {},
+      pendingCandidates: 0,
+      lastRunAt: now()
+    });
+    const collected = collectWorkspaceBoundaryCandidates(workspaceRoot, {
+      refreshBoundary: true,
+      eligibleRepositoryIds: eligible
+    });
+    if (!collected.ok) return { ok: false, reason: collected.reason, members: memberResults, candidates: 0, linksChanged: 0 };
+    const expectedMembers = {};
+    for (const member of collected.workspace.members) {
+      if (!eligible.has(member.member.repositoryId) || member.status !== "ready" || !member.repoRoot || !member.graphRaw) continue;
+      const boundary = readBoundaryIndex(member.repoRoot);
+      const graphHash = hashText2(member.graphRaw);
+      if (boundary.ok && boundary.value.graphHash === graphHash) expectedMembers[member.member.repositoryId] = {
+        graphHash,
+        boundaryFingerprint: boundary.value.fingerprint
+      };
+    }
+    const live = await reconcileApprovedWorkspaceLinks(
+      workspaceRoot,
+      collected.joined.candidates,
+      collected.workspace.fileRaw,
+      expectedMembers
+    );
+    if (!live.ok && live.reason !== "stale-snapshot") {
+      return { ok: false, reason: live.reason, members: memberResults, candidates: 0, linksChanged: 0 };
+    }
+    if (!live.ok) {
+      return { ok: false, reason: "workspace changed during reconciliation; retry required", members: memberResults, candidates: 0, linksChanged: 0 };
+    }
+    const persisted = await persistWorkspaceCandidates(workspaceRoot, collected.joined.candidates, { now: opts.now });
+    if (!persisted.ok) return { ok: false, reason: persisted.reason, members: memberResults, candidates: 0, linksChanged: live.changed };
+    const final = loadWorkspace(workspaceRoot);
+    const fingerprints = {};
+    if (final.ok) {
+      for (const member of final.workspace.members) {
+        if (member.status !== "ready" || !member.repoRoot || !member.graphRaw) continue;
+        const boundary = readBoundaryIndex(member.repoRoot);
+        if (!boundary.ok || boundary.value.graphHash !== hashText2(member.graphRaw)) continue;
+        fingerprints[member.member.repositoryId] = {
+          graphHash: boundary.value.graphHash,
+          boundaryFingerprint: boundary.value.fingerprint
+        };
+      }
+    }
+    const pending = persisted.store.candidates.filter((candidate) => candidate.status === "pending").length;
+    const partial = Object.values(memberResults).some((result) => !result.ok) || collected.diagnostics.length > 0;
+    await writeState({
+      version: 1,
+      phase: partial ? "partial" : pending > 0 ? "review" : "idle",
+      members: fingerprints,
+      pendingCandidates: pending,
+      lastRunAt: now(),
+      ...partial ? { lastReason: [
+        ...Object.entries(memberResults).filter(([, result]) => !result.ok).map(([id, result]) => `${id}: ${result.reason}`),
+        ...collected.diagnostics
+      ].join("; ") } : {}
+    });
+    return {
+      ok: true,
+      reason: partial ? "completed with unavailable members" : pending ? "review needed" : "up to date",
+      members: memberResults,
+      candidates: pending,
+      linksChanged: live.changed
+    };
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    try {
+      await writeState({
+        version: 1,
+        phase: "error",
+        members: {},
+        pendingCandidates: 0,
+        lastRunAt: now(),
+        lastReason: reason
+      });
+    } catch {
+    }
+    return { ok: false, reason, members: memberResults, candidates: 0, linksChanged: 0 };
+  } finally {
+    stopWatchingCancellation();
+    opts.signal?.removeEventListener("abort", forwardAbort);
+    clearOwnedWorkspaceCancellation(workspaceRoot, guard.token);
+    if (queued) await completeWorkspaceTrigger(workspaceRoot, queued.raw);
+    guard.release();
+    if (queued && !signal.aborted) {
+      const successor = peekWorkspaceTrigger(workspaceRoot);
+      if (successor) return await runWorkspaceSupervisor(workspaceRoot, successor.trigger, opts);
+    }
+  }
+}
+
+// src/workspace-reconcile/entry.ts
+async function runWorkspaceReconcileEntry(argv) {
+  const [workspaceRoot, kind, ids = ""] = argv;
+  if (!workspaceRoot || !["session-stop", "member-state-change", "explicit-sync"].includes(kind)) return 1;
+  const ent = await checkEntitlement(process.env);
+  if (!ent.allowed) {
+    console.error(`visflow workspace reconcile: ${ent.refusal ?? "not licensed"}`);
+    return 1;
+  }
+  const repositoryIds = ids.split(",").filter(Boolean);
+  const trigger = kind === "explicit-sync" ? { kind, ...repositoryIds.length ? { repositoryIds } : {} } : { kind, dirtyRepositoryIds: repositoryIds };
+  const result = await runWorkspaceSupervisor(workspaceRoot, trigger);
+  return result.ok ? 0 : 1;
+}
+if (isMain(import.meta.url)) {
+  void runWorkspaceReconcileEntry(process.argv.slice(2)).then((code) => {
+    process.exitCode = code;
+  });
+}
 export {
-  handleStop
+  runWorkspaceReconcileEntry
 };

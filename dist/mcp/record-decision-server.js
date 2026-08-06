@@ -21115,7 +21115,7 @@ var StdioServerTransport = class {
 };
 
 // src/core/decisions.ts
-import { readFileSync as readFileSync3 } from "node:fs";
+import { readFileSync as readFileSync4 } from "node:fs";
 import { join as join4 } from "node:path";
 
 // src/core/load-graph.ts
@@ -21129,8 +21129,14 @@ var MAX_GROUPS = 64;
 
 // src/schema/graph-schema.ts
 var LAYERS = ["ui", "client", "api", "services", "data", "external"];
+var FlowSchema = external_exports.object({
+  inbound: external_exports.string().max(MAX_TEXT).nullish().transform((v) => v || void 0),
+  during: external_exports.string().max(MAX_TEXT).nullish().transform((v) => v || void 0),
+  outbound: external_exports.string().max(MAX_TEXT).nullish().transform((v) => v || void 0)
+});
 var ReasoningSchema = external_exports.object({
-  summary: external_exports.string().min(1).max(MAX_TEXT)
+  summary: external_exports.string().min(1).max(MAX_TEXT),
+  flow: FlowSchema.nullish().transform((v) => v && (v.inbound ?? v.during ?? v.outbound) !== void 0 ? v : void 0)
 });
 var DepLinkSchema = external_exports.object({
   id: external_exports.string().min(1).max(MAX_NAME),
@@ -21196,14 +21202,7 @@ function validateGraph(data) {
 }
 
 // src/core/load-graph.ts
-function loadGraph(repoRoot2) {
-  const path = join(repoRoot2, ".visflow", "graph.json");
-  let raw;
-  try {
-    raw = readFileSync(path, "utf8");
-  } catch {
-    return { ok: false, error: { kind: "not-found", messages: [`No graph found at ${path}. Run /visflow:init first.`] } };
-  }
+function parseGraph(raw) {
   let data;
   try {
     data = JSON.parse(raw);
@@ -21215,6 +21214,16 @@ function loadGraph(repoRoot2) {
     return { ok: false, error: { kind: "schema", messages: result.errors } };
   }
   return { ok: true, graph: result.graph, raw };
+}
+function loadGraph(repoRoot2) {
+  const path = join(repoRoot2, ".visflow", "graph.json");
+  let raw;
+  try {
+    raw = readFileSync(path, "utf8");
+  } catch {
+    return { ok: false, error: { kind: "not-found", messages: [`No graph found at ${path}. Run /visflow:init first.`] } };
+  }
+  return parseGraph(raw);
 }
 
 // src/core/atomic.ts
@@ -21229,8 +21238,8 @@ function writeJsonAtomic(targetPath, data) {
 }
 
 // src/core/lock.ts
-import { writeFileSync as writeFileSync2, mkdirSync as mkdirSync2 } from "node:fs";
-import { join as join3 } from "node:path";
+import { writeFileSync as writeFileSync2, mkdirSync as mkdirSync2, readFileSync as readFileSync3, rmSync as rmSync2, statSync as statSync2 } from "node:fs";
+import { dirname as dirname2, join as join3 } from "node:path";
 
 // src/core/stale-pid-file.ts
 import { readFileSync as readFileSync2, statSync, renameSync as renameSync2, rmSync, utimesSync } from "node:fs";
@@ -21344,13 +21353,7 @@ var DecisionsInvalidError = class extends Error {
 function decisionsPath(repoRoot2) {
   return join4(repoRoot2, ".visflow", "decisions.json");
 }
-function readDecisions(repoRoot2) {
-  let raw;
-  try {
-    raw = readFileSync3(decisionsPath(repoRoot2), "utf8");
-  } catch {
-    return { version: 1, decisions: {} };
-  }
+function parseDecisions(raw) {
   let data;
   try {
     data = JSON.parse(raw);
@@ -21365,6 +21368,15 @@ ${result.errors.map((e) => `  - ${e}`).join("\n")}`
     );
   }
   return data;
+}
+function readDecisions(repoRoot2) {
+  let raw;
+  try {
+    raw = readFileSync4(decisionsPath(repoRoot2), "utf8");
+  } catch {
+    return { version: 1, decisions: {} };
+  }
+  return parseDecisions(raw);
 }
 function writeAtomic(repoRoot2, file) {
   writeJsonAtomic(decisionsPath(repoRoot2), file);
@@ -21383,7 +21395,7 @@ async function recordDecision(repoRoot2, component, what, why, now = () => (/* @
 }
 
 // src/core/feedback-log.ts
-import { appendFileSync, mkdirSync as mkdirSync3, readFileSync as readFileSync4 } from "node:fs";
+import { appendFileSync, mkdirSync as mkdirSync3, readFileSync as readFileSync5 } from "node:fs";
 import { join as join5 } from "node:path";
 function feedbackLogPath(repoRoot2) {
   return join5(repoRoot2, ".visflow", "feedback.log");
@@ -21397,7 +21409,7 @@ function appendFeedback(repoRoot2, rec) {
 }
 
 // src/core/feedback-targets.ts
-import { appendFileSync as appendFileSync2, existsSync, mkdirSync as mkdirSync4, readFileSync as readFileSync5, readdirSync, renameSync as renameSync3, rmSync as rmSync2 } from "node:fs";
+import { appendFileSync as appendFileSync2, existsSync, mkdirSync as mkdirSync4, readFileSync as readFileSync6, readdirSync, renameSync as renameSync3, rmSync as rmSync3 } from "node:fs";
 import { join as join6 } from "node:path";
 function targetsPath(repoRoot2) {
   return join6(repoRoot2, ".visflow", "feedback-targets.log");

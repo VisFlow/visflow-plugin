@@ -33,7 +33,13 @@ Using the Bash tool, check whether a map already exists:
   - `external` — third-party services and APIs
 - Record dependencies in `dependsOn`. Each entry is either a bare component **id** string, or an object `{ "id": "<other-id>", "what": "<the specific thing this component uses from it>", "why": "<the reason this dependency exists>" }`. Prefer the annotated object form: when you can tell from the code *what* is used (a function, endpoint, table, type) and *why*, include short `what`/`why` strings; fall back to a bare id only when you genuinely can't. Every `id` (string or `{id}`) MUST be the id of another component in the file.
 - For each component, write a one–two sentence `reasoning.summary`: what it is and why it exists. Set `reasoning.decisions` to `[]` (empty in this version).
-- Cluster the components into **groups** — stable, subsystem-level buckets the map's condensed view opens with (e.g. "Frontend", "API & Services", "Data & Storage", "Build Tooling"). Groups may span layers. **Every component gets exactly one `group`.** Keep groups meaningful: typically 2+ components per group (avoid single-member groups when a sensible sibling exists); a small project may need only 2–4 groups, a larger one roughly 5–12. For each group, write a one-sentence `reasoning.summary` describing the subsystem.
+- For each component, also write a `reasoning.flow` narrative with three short fields (one–two sentences each):
+  - `inbound` — what data arrives here and from where.
+  - `during` — what this component does with it.
+  - `outbound` — what leaves, and who receives it.
+
+  Name the concrete artifact *and* its meaning — an endpoint, type, table, file, or function, plus what it represents ("Receives `GET /api/graph` from the web SPA — the browser asking for the current map"). Where a handoff crosses a component boundary, reference the sibling component by id, so the narrative and the `dependsOn` edges tell the same story. Omit a field rather than pad it — a leaf `data` component may genuinely have no `outbound`.
+- Cluster the components into **groups** — stable, subsystem-level buckets the map's condensed view opens with (e.g. "Frontend", "API & Services", "Data & Storage", "Build Tooling"). Groups may span layers. **Every component gets exactly one `group`.** Keep groups meaningful: typically 2+ components per group (avoid single-member groups when a sensible sibling exists); a small project may need only 2–4 groups, a larger one roughly 5–12. For each group, write a one-sentence `reasoning.summary` describing the subsystem, plus a `reasoning.flow` at subsystem granularity (same `inbound`/`during`/`outbound` fields as components).
 
 ## Step 3 — Write the file
 Write `.visflow/graph.json` with EXACTLY this shape:
@@ -45,7 +51,14 @@ Write `.visflow/graph.json` with EXACTLY this shape:
     {
       "id": "kebab-case-group-id",
       "label": "Human Readable Group Name",
-      "reasoning": { "summary": "What this subsystem is." }
+      "reasoning": {
+        "summary": "What this subsystem is.",
+        "flow": {
+          "inbound": "What arrives here, from where.",
+          "during": "What this subsystem does with it.",
+          "outbound": "What leaves, and who receives it."
+        }
+      }
     }
   ],
   "nodes": [
@@ -56,7 +69,15 @@ Write `.visflow/graph.json` with EXACTLY this shape:
       "group": "kebab-case-group-id",
       "files": ["real/relative/path.ts", "real/relative/other.ts"],
       "dependsOn": [{ "id": "other-component-id", "what": "the thing used", "why": "the reason" }],
-      "reasoning": { "summary": "What it is and why it exists.", "decisions": [] }
+      "reasoning": {
+        "summary": "What it is and why it exists.",
+        "flow": {
+          "inbound": "What arrives here, from where.",
+          "during": "What this component does with it.",
+          "outbound": "What leaves, and who receives it."
+        },
+        "decisions": []
+      }
     }
   ]
 }

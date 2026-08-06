@@ -1,5 +1,5 @@
 ---
-description: Connect existing VisFlow maps into a multi-repository workspace, validate it, and open the combined map.
+description: Connect existing VisFlow maps, discover cross-repository relationships, review them, and open the combined map.
 disable-model-invocation: true
 allowed-tools: Read, Glob, Bash
 ---
@@ -7,8 +7,8 @@ allowed-tools: Read, Glob, Bash
 # Create or extend a VisFlow multi-repository workspace
 
 This flow connects two or more **existing, independently mapped repositories**. It does not clone
-repositories, initialize missing maps, rebuild member maps, merge `.visflow/` directories, infer
-cross-repository links, or create commits. The deterministic CLI is the only writer for
+repositories, initialize missing maps, rebuild member maps, merge `.visflow/` directories, or
+create commits. The deterministic CLI is the only writer for
 `.visflow-workspace/`; do not write `workspace.json` or `locations.json` directly.
 
 ## Step 1 — Choose the workspace and member checkouts
@@ -36,17 +36,33 @@ If a workspace already exists, this safely registers any new members. Explain th
 repository remains separate and authoritative: its graph and decisions were not rebuilt,
 copied, or merged.
 
-## Step 3 — Add explicit relationships (optional)
+## Step 3 — Discover and review relationships
 
-Cross-repository relationships are manual in this release. Do not claim automatic discovery.
-Ask whether the user wants to add known links. For every confirmed relationship, run:
+Run deterministic boundary discovery after all member maps validate:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/dist/cli/index.js" workspace discover
+node "${CLAUDE_PLUGIN_ROOT}/dist/cli/index.js" workspace candidates
+```
+
+Discovery creates review candidates and never silently changes `workspace.json`. Show the user
+the source, target, confidence, and evidence for every candidate. For each accepted candidate run:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/dist/cli/index.js" workspace approve "<candidate-id>"
+```
+
+For each rejected candidate run `workspace dismiss "<candidate-id>"`; it stays suppressed until
+material evidence changes. Approved inferred links are marked `managedBy: "reconciler"` and are
+maintained by later workspace syncs. Manual links remain supported and are never changed by
+automatic reconciliation:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/dist/cli/index.js" workspace link --from "<source-alias>/<node-id>" --to "<target-alias>/<node-id>" [--what "<what is used>"] [--why "<reason>"]
 ```
 
-Direction is exact: `source depends on target`. If the user does not know component ids, run
-workspace validate, open the map, and let them add links later rather than guessing.
+Direction is exact: `source depends on target`. Never guess node ids or write relationship JSON
+directly.
 
 ## Step 4 — Validate and open
 
@@ -54,6 +70,7 @@ Run:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/dist/cli/index.js" workspace validate
+node "${CLAUDE_PLUGIN_ROOT}/dist/cli/index.js" workspace sync --links-only
 node "${CLAUDE_PLUGIN_ROOT}/dist/cli/index.js" workspace open
 ```
 

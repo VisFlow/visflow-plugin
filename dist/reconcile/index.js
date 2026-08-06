@@ -4066,11 +4066,20 @@ var NEVER = INVALID;
 var MAX_TEXT = 1e4;
 var MAX_NAME = 500;
 var MAX_GROUPS = 64;
+var MAX_WORKSPACE_MEMBERS = 128;
+var MAX_CROSS_REPO_LINKS = 4096;
+var MAX_CROSS_LINK_EVIDENCE = 32;
 
 // src/schema/graph-schema.ts
 var LAYERS = ["ui", "client", "api", "services", "data", "external"];
+var FlowSchema = external_exports.object({
+  inbound: external_exports.string().max(MAX_TEXT).nullish().transform((v) => v || void 0),
+  during: external_exports.string().max(MAX_TEXT).nullish().transform((v) => v || void 0),
+  outbound: external_exports.string().max(MAX_TEXT).nullish().transform((v) => v || void 0)
+});
 var ReasoningSchema = external_exports.object({
-  summary: external_exports.string().min(1).max(MAX_TEXT)
+  summary: external_exports.string().min(1).max(MAX_TEXT),
+  flow: FlowSchema.nullish().transform((v) => v && (v.inbound ?? v.during ?? v.outbound) !== void 0 ? v : void 0)
 });
 var DepLinkSchema = external_exports.object({
   id: external_exports.string().min(1).max(MAX_NAME),
@@ -4136,14 +4145,7 @@ function validateGraph(data) {
 }
 
 // src/core/load-graph.ts
-function loadGraph(repoRoot) {
-  const path = join(repoRoot, ".visflow", "graph.json");
-  let raw;
-  try {
-    raw = readFileSync(path, "utf8");
-  } catch {
-    return { ok: false, error: { kind: "not-found", messages: [`No graph found at ${path}. Run /visflow:init first.`] } };
-  }
+function parseGraph(raw) {
   let data;
   try {
     data = JSON.parse(raw);
@@ -4156,9 +4158,19 @@ function loadGraph(repoRoot) {
   }
   return { ok: true, graph: result.graph, raw };
 }
+function loadGraph(repoRoot) {
+  const path = join(repoRoot, ".visflow", "graph.json");
+  let raw;
+  try {
+    raw = readFileSync(path, "utf8");
+  } catch {
+    return { ok: false, error: { kind: "not-found", messages: [`No graph found at ${path}. Run /visflow:init first.`] } };
+  }
+  return parseGraph(raw);
+}
 
 // src/core/decisions.ts
-import { readFileSync as readFileSync3 } from "node:fs";
+import { readFileSync as readFileSync4 } from "node:fs";
 import { join as join4 } from "node:path";
 
 // src/core/atomic.ts
@@ -4173,8 +4185,8 @@ function writeJsonAtomic(targetPath, data) {
 }
 
 // src/core/lock.ts
-import { writeFileSync as writeFileSync2, mkdirSync as mkdirSync2 } from "node:fs";
-import { join as join3 } from "node:path";
+import { writeFileSync as writeFileSync2, mkdirSync as mkdirSync2, readFileSync as readFileSync3, rmSync as rmSync2, statSync as statSync2 } from "node:fs";
+import { dirname as dirname2, join as join3 } from "node:path";
 
 // src/core/stale-pid-file.ts
 import { readFileSync as readFileSync2, statSync, renameSync as renameSync2, rmSync, utimesSync } from "node:fs";
@@ -4264,6 +4276,42 @@ async function withStateLock(stateDir, fn, opts = {}) {
     releaseOwnedPidFile(lockPath);
   }
 }
+function withSyncMicroLock(lockPath, fn, opts = {}) {
+  const lockTimeoutMs = opts.lockTimeoutMs ?? 1500;
+  const staleMs = opts.staleMs ?? 1e3;
+  mkdirSync2(dirname2(lockPath), { recursive: true });
+  const deadline = Date.now() + lockTimeoutMs;
+  let locked = false;
+  while (Date.now() < deadline) {
+    try {
+      writeFileSync2(lockPath, `${process.pid}`, { flag: "wx" });
+      locked = true;
+      break;
+    } catch {
+      try {
+        if (Date.now() - statSync2(lockPath).mtimeMs > staleMs) {
+          rmSync2(lockPath, { force: true });
+          continue;
+        }
+      } catch {
+        continue;
+      }
+      const spinUntil = Date.now() + 5;
+      while (Date.now() < spinUntil) {
+      }
+    }
+  }
+  try {
+    return fn();
+  } finally {
+    if (locked) {
+      try {
+        if (readFileSync3(lockPath, "utf8") === `${process.pid}`) rmSync2(lockPath, { force: true });
+      } catch {
+      }
+    }
+  }
+}
 function withLock(repoRoot, fn, opts = {}) {
   return withStateLock(join3(repoRoot, ".visflow"), fn, opts);
 }
@@ -4294,13 +4342,7 @@ var DecisionsInvalidError = class extends Error {
 function decisionsPath(repoRoot) {
   return join4(repoRoot, ".visflow", "decisions.json");
 }
-function readDecisions(repoRoot) {
-  let raw;
-  try {
-    raw = readFileSync3(decisionsPath(repoRoot), "utf8");
-  } catch {
-    return { version: 1, decisions: {} };
-  }
+function parseDecisions(raw) {
   let data;
   try {
     data = JSON.parse(raw);
@@ -4316,13 +4358,22 @@ ${result.errors.map((e) => `  - ${e}`).join("\n")}`
   }
   return data;
 }
+function readDecisions(repoRoot) {
+  let raw;
+  try {
+    raw = readFileSync4(decisionsPath(repoRoot), "utf8");
+  } catch {
+    return { version: 1, decisions: {} };
+  }
+  return parseDecisions(raw);
+}
 function findOrphans(nodeIds, decisions) {
   const known = new Set(nodeIds);
   return Object.keys(decisions.decisions).filter((id) => !known.has(id));
 }
 
 // src/core/events-log.ts
-import { appendFileSync, mkdirSync as mkdirSync3, readFileSync as readFileSync4, renameSync as renameSync3, rmSync as rmSync2, existsSync, readdirSync } from "node:fs";
+import { appendFileSync, mkdirSync as mkdirSync3, readFileSync as readFileSync5, renameSync as renameSync3, rmSync as rmSync3, existsSync, readdirSync } from "node:fs";
 import { join as join5 } from "node:path";
 var MAX_EVENT_RETRIES = 3;
 function eventsLogPath(repoRoot) {
@@ -4353,14 +4404,14 @@ function drainEvents(repoRoot) {
   let events = [];
   let note;
   try {
-    events = parseEvents(readFileSync4(snapshot, "utf8"));
+    events = parseEvents(readFileSync5(snapshot, "utf8"));
   } catch {
     note = "events snapshot unreadable; contents discarded";
   }
   return {
     events,
     note,
-    commit: () => rmSync2(snapshot, { force: true }),
+    commit: () => rmSync3(snapshot, { force: true }),
     restore: (opts) => {
       const bump = opts?.bumpRetry ?? true;
       let abandoned = 0;
@@ -4376,7 +4427,7 @@ function drainEvents(repoRoot) {
         }
         appendEvent(repoRoot, { ...ev, retry });
       }
-      rmSync2(snapshot, { force: true });
+      rmSync3(snapshot, { force: true });
       return abandoned;
     }
   };
@@ -4411,7 +4462,7 @@ function sweepAbandonedDrains(repoRoot) {
     if (isPidAlive(Number.parseInt(m[1], 10))) continue;
     const snapshot = join5(dir, name);
     try {
-      for (const ev of parseEvents(readFileSync4(snapshot, "utf8"))) {
+      for (const ev of parseEvents(readFileSync5(snapshot, "utf8"))) {
         const retry = (ev.retry ?? 0) + 1;
         if (retry >= MAX_EVENT_RETRIES) {
           abandoned++;
@@ -4423,7 +4474,7 @@ function sweepAbandonedDrains(repoRoot) {
     } catch {
       unreadable++;
     }
-    rmSync2(snapshot, { force: true });
+    rmSync3(snapshot, { force: true });
   }
   const parts = [
     unreadable > 0 ? `${unreadable} abandoned snapshot(s) unreadable; contents discarded` : void 0,
@@ -4464,14 +4515,14 @@ function findGhostNodeIds(graph, repoRoot) {
 }
 
 // src/core/meta.ts
-import { readFileSync as readFileSync5, existsSync as existsSync4, writeFileSync as writeFileSync3, rmSync as rmSync3, statSync as statSync2, mkdirSync as mkdirSync4 } from "node:fs";
+import { readFileSync as readFileSync6, existsSync as existsSync4 } from "node:fs";
 import { join as join8 } from "node:path";
 function metaPath(repoRoot) {
   return join8(repoRoot, ".visflow", "meta.json");
 }
 function readMeta(repoRoot) {
   try {
-    const d = JSON.parse(readFileSync5(metaPath(repoRoot), "utf8"));
+    const d = JSON.parse(readFileSync6(metaPath(repoRoot), "utf8"));
     return {
       version: 1,
       lastSync: d.lastSync ?? null,
@@ -4490,57 +4541,25 @@ function writeMeta(repoRoot, meta) {
   writeJsonAtomic(metaPath(repoRoot), meta);
 }
 function updateMeta(repoRoot, update, opts = {}) {
-  const lockTimeoutMs = opts.lockTimeoutMs ?? 1500;
-  const staleMs = opts.staleMs ?? 1e3;
-  const lockPath = join8(repoRoot, ".visflow", ".meta-lock");
-  mkdirSync4(join8(repoRoot, ".visflow"), { recursive: true });
-  const deadline = Date.now() + lockTimeoutMs;
-  let locked = false;
-  while (Date.now() < deadline) {
-    try {
-      writeFileSync3(lockPath, `${process.pid}`, { flag: "wx" });
-      locked = true;
-      break;
-    } catch {
-      try {
-        if (Date.now() - statSync2(lockPath).mtimeMs > staleMs) {
-          rmSync3(lockPath, { force: true });
-          continue;
-        }
-      } catch {
-        continue;
-      }
-      const spinUntil = Date.now() + 5;
-      while (Date.now() < spinUntil) {
-      }
-    }
-  }
-  try {
+  withSyncMicroLock(join8(repoRoot, ".visflow", ".meta-lock"), () => {
     writeMeta(repoRoot, update(readMeta(repoRoot)));
-  } finally {
-    if (locked) {
-      try {
-        if (readFileSync5(lockPath, "utf8") === `${process.pid}`) rmSync3(lockPath, { force: true });
-      } catch {
-      }
-    }
-  }
+  }, opts);
 }
 
 // src/core/run-guard.ts
-import { writeFileSync as writeFileSync4, mkdirSync as mkdirSync5 } from "node:fs";
+import { writeFileSync as writeFileSync3, mkdirSync as mkdirSync4 } from "node:fs";
 import { join as join9 } from "node:path";
 import { randomUUID } from "node:crypto";
 var GUARD_TTL_MS = 10 * 60 * 1e3;
-function acquireRunGuard(repoRoot, opts = {}) {
+function acquireStateRunGuard(stateDir, filename, opts = {}) {
   const ttlMs = opts.ttlMs ?? GUARD_TTL_MS;
-  const path = join9(repoRoot, ".visflow", ".reconcile-running");
-  mkdirSync5(join9(repoRoot, ".visflow"), { recursive: true });
+  const path = join9(stateDir, filename);
+  mkdirSync4(stateDir, { recursive: true });
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const token = randomUUID();
       const ownerRaw = JSON.stringify({ version: 1, pid: process.pid, token });
-      writeFileSync4(path, ownerRaw, { flag: "wx" });
+      writeFileSync3(path, ownerRaw, { flag: "wx" });
       const lease = setInterval(() => touchPidFile(path), Math.max(1e3, Math.floor(ttlMs / 5)));
       lease.unref();
       return {
@@ -4559,14 +4578,17 @@ function acquireRunGuard(repoRoot, opts = {}) {
   return { acquired: false, release: () => {
   } };
 }
+function acquireRunGuard(repoRoot, opts = {}) {
+  return acquireStateRunGuard(join9(repoRoot, ".visflow"), ".reconcile-running", opts);
+}
 
 // src/core/reconcile-cancel.ts
-import { existsSync as existsSync5, readFileSync as readFileSync6, rmSync as rmSync4 } from "node:fs";
+import { existsSync as existsSync5, readFileSync as readFileSync7, rmSync as rmSync4 } from "node:fs";
 import { join as join10 } from "node:path";
 var requestPath = (repoRoot) => join10(repoRoot, ".visflow", ".reconcile-cancel.json");
 function readCancelRequest(repoRoot) {
   try {
-    const parsed = JSON.parse(readFileSync6(requestPath(repoRoot), "utf8"));
+    const parsed = JSON.parse(readFileSync7(requestPath(repoRoot), "utf8"));
     return parsed.version === 1 && typeof parsed.token === "string" && typeof parsed.requestedAt === "string" ? parsed : null;
   } catch {
     return null;
@@ -4768,8 +4790,9 @@ ${JSON.stringify(orphanDecisions, null, 2)}
     "Emit ONLY nodes you changed in `upsert` \u2014 do NOT echo unchanged nodes (they are preserved automatically).",
     "To change a node, copy it from the graph above and emit the whole modified node (every field).",
     `Every node's \`layer\` MUST be one of: ${LAYERS.join(", ")} \u2014 any other value is rejected.`,
-    'Every `upsert` node MUST be complete: {"id", "label", "layer", "group": "<group id>", "files": [repo-relative paths], "dependsOn": [{"id", "what", "why"}], "reasoning": {"summary": "<1-2 sentences>"}} \u2014 `reasoning.summary` is REQUIRED; a node missing it is rejected.',
-    'Groups: every node MUST have a `group` \u2014 the id of an entry in the graph\'s `groups` list. PREFER existing groups; create a new one (emit it in `groupUpsert`, complete: {"id", "label", "reasoning": {"summary": "<1 sentence>"}}) only when no existing group fits. Roughly 5-12 groups is healthy; avoid single-member groups when a sensible sibling group exists.',
+    'Every `upsert` node MUST be complete: {"id", "label", "layer", "group": "<group id>", "files": [repo-relative paths], "dependsOn": [{"id", "what", "why"}], "reasoning": {"summary": "<1-2 sentences>", "flow": {"inbound", "during", "outbound"}}} \u2014 `reasoning.summary` is REQUIRED; a node missing it is rejected.',
+    "`reasoning.flow` narrates the data flow (each field 1-2 sentences): `inbound` \u2014 what arrives and from where; `during` \u2014 what the component does with it; `outbound` \u2014 what leaves and who receives it. Name the concrete artifact and its meaning (endpoint, type, table, function). Omit a field rather than pad it. When the node or group you are copying already has `reasoning.flow`, carry it forward \u2014 and update it when the flow actually changed.",
+    'Groups: every node MUST have a `group` \u2014 the id of an entry in the graph\'s `groups` list. PREFER existing groups; create a new one (emit it in `groupUpsert`, complete: {"id", "label", "reasoning": {"summary": "<1 sentence>", "flow": {"inbound", "during", "outbound"} at subsystem granularity}}) only when no existing group fits. Roughly 5-12 groups is healthy; avoid single-member groups when a sensible sibling group exists.',
     "Group ids are stable: NEVER change an existing group's id (labels/reasoning may change via `groupUpsert`). There is NO way to delete a group \u2014 a group disappears automatically when its last member leaves; to merge group X into Y, re-emit X's members with Y's group id.",
     "Omit `groupUpsert` (or emit []) when no group is added or reworded.",
     'ALWAYS end with the JSON object \u2014 when nothing needs changing, emit exactly {"upsert": [], "remove": [], "decisionMoves": []}; never prose in its place.',
@@ -4973,6 +4996,9 @@ function toRepoRelative(file, repoRoot) {
   const rel = isAbsolute(file) ? relative(repoRoot, file) : normalize(file);
   return rel.split(sep).join("/");
 }
+function isPathInside(parent, child) {
+  return child === parent || child.startsWith(parent + sep);
+}
 
 // src/reconcile/scope.ts
 function isIgnoredComponentEvidence(path) {
@@ -5014,12 +5040,12 @@ function isIgnoredComponentEvidence(path) {
   return /\.(md|mdx|rst|adoc|txt)$/.test(base) || /^(readme|changelog|changes|license|licence|authors|contributors|code_of_conduct)(\.|$)/.test(base) || /^(package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?)$/.test(base);
 }
 function resolveAffectedNodes(events, graph, repoRoot, opts = {}) {
-  const safeRelative = (file) => {
+  const safeRelative2 = (file) => {
     const rel = toRepoRelative(file, repoRoot);
     return rel.length > 0 && rel !== "." && !rel.startsWith("..") && !isAbsolute2(rel) ? rel : null;
   };
   const changedFiles = [...new Set(
-    events.map((e) => safeRelative(e.file)).filter((rel) => rel !== null)
+    events.map((e) => safeRelative2(e.file)).filter((rel) => rel !== null)
   )];
   const changedSet = new Set(changedFiles);
   const affected = graph.nodes.filter((n) => n.files.some((f) => changedSet.has(f)));
@@ -5028,12 +5054,12 @@ function resolveAffectedNodes(events, graph, repoRoot, opts = {}) {
   const ownedChangedFiles = changedFiles.filter((f) => knownFiles.has(f));
   const explicit = /* @__PURE__ */ new Set();
   for (const file of opts.explicitFiles ?? []) {
-    const rel = safeRelative(file);
+    const rel = safeRelative2(file);
     if (rel !== null) explicit.add(rel);
   }
   for (const event of events) {
     if (typeof event.tool !== "string" || event.tool.toLowerCase() !== "feedback") continue;
-    const rel = safeRelative(event.file);
+    const rel = safeRelative2(event.file);
     if (rel !== null) explicit.add(rel);
   }
   const unowned = changedFiles.filter((f) => !knownFiles.has(f));
@@ -5058,7 +5084,7 @@ function resolveAffectedNodes(events, graph, repoRoot, opts = {}) {
 }
 
 // src/core/feedback-targets.ts
-import { appendFileSync as appendFileSync2, existsSync as existsSync6, mkdirSync as mkdirSync6, readFileSync as readFileSync7, readdirSync as readdirSync2, renameSync as renameSync4, rmSync as rmSync5 } from "node:fs";
+import { appendFileSync as appendFileSync2, existsSync as existsSync6, mkdirSync as mkdirSync5, readFileSync as readFileSync8, readdirSync as readdirSync2, renameSync as renameSync4, rmSync as rmSync5 } from "node:fs";
 import { join as join11 } from "node:path";
 function targetsPath(repoRoot) {
   return join11(repoRoot, ".visflow", "feedback-targets.log");
@@ -5079,7 +5105,7 @@ function parseTargets(raw) {
 }
 function enqueueTargets(repoRoot, nodeIds, files = []) {
   if (nodeIds.length === 0 && files.length === 0) return;
-  mkdirSync6(join11(repoRoot, ".visflow"), { recursive: true });
+  mkdirSync5(join11(repoRoot, ".visflow"), { recursive: true });
   appendFileSync2(targetsPath(repoRoot), JSON.stringify({ nodes: nodeIds, files }) + "\n");
 }
 function drainTargets(repoRoot) {
@@ -5092,7 +5118,7 @@ function drainTargets(repoRoot) {
   let nodeIds = [];
   let files = [];
   try {
-    ({ nodeIds, files } = parseTargets(readFileSync7(snapshot, "utf8")));
+    ({ nodeIds, files } = parseTargets(readFileSync8(snapshot, "utf8")));
   } catch {
   }
   return {
@@ -5133,7 +5159,7 @@ function sweepAbandonedTargetDrains(repoRoot) {
     if (isPidAlive(Number.parseInt(m[1], 10))) continue;
     const snapshot = join11(dir, name);
     try {
-      const targets = parseTargets(readFileSync7(snapshot, "utf8"));
+      const targets = parseTargets(readFileSync8(snapshot, "utf8"));
       enqueueTargets(repoRoot, targets.nodeIds, targets.files);
       requeued += targets.nodeIds.length + targets.files.length;
     } catch {
@@ -5144,6 +5170,14 @@ function sweepAbandonedTargetDrains(repoRoot) {
 }
 
 // src/reconcile/patch.ts
+var hasFlowText = (f) => !!f && !!(f.inbound || f.during || f.outbound);
+var carryFlow = (next, prev) => {
+  const r = next.reasoning;
+  if (!r || typeof r !== "object") return next;
+  if (r.flow != null && (typeof r.flow !== "object" || Array.isArray(r.flow))) return next;
+  if (hasFlowText(r.flow) || !hasFlowText(prev?.reasoning?.flow)) return next;
+  return { ...next, reasoning: { ...r, flow: prev.reasoning.flow } };
+};
 function applyPatch(prev, patch) {
   const upserts = patch.upsert.filter((n) => !!n && typeof n === "object");
   const groupUpserts = (patch.groupUpsert ?? []).filter((g) => !!g && typeof g === "object");
@@ -5153,7 +5187,8 @@ function applyPatch(prev, patch) {
   const placed = /* @__PURE__ */ new Set();
   for (const node of prev.nodes) {
     if (removeSet.has(node.id)) continue;
-    nodes.push(upsertById.get(node.id) ?? node);
+    const next = upsertById.get(node.id);
+    nodes.push(next ? carryFlow(next, node) : node);
     placed.add(node.id);
   }
   for (const node of upserts) {
@@ -5166,7 +5201,8 @@ function applyPatch(prev, patch) {
   const groups = [];
   const placedGroups = /* @__PURE__ */ new Set();
   for (const g of prev.groups ?? []) {
-    groups.push(groupById.get(g.id) ?? g);
+    const next = groupById.get(g.id);
+    groups.push(next ? carryFlow(next, g) : g);
     placedGroups.add(g.id);
   }
   for (const g of groupUpserts) {
@@ -5371,9 +5407,9 @@ function scheduleTimeout(fn, delayMs) {
   };
 }
 function claudeCliRunnerWith(spawnImpl) {
-  return (input) => new Promise((resolve) => {
+  return (input) => new Promise((resolve2) => {
     if (input.signal?.aborted) {
-      resolve({ ok: false, kind: "cancelled", reason: "claude reconcile cancelled" });
+      resolve2({ ok: false, kind: "cancelled", reason: "claude reconcile cancelled" });
       return;
     }
     const byok = !!input.byokKey;
@@ -5383,7 +5419,7 @@ function claudeCliRunnerWith(spawnImpl) {
     try {
       child = spawnImpl("claude", args, { cwd: input.repoRoot, env, stdio: ["pipe", "pipe", "pipe"] });
     } catch {
-      resolve({ ok: false, reason: "claude CLI not found or failed to spawn" });
+      resolve2({ ok: false, reason: "claude CLI not found or failed to spawn" });
       return;
     }
     let out = "";
@@ -5403,7 +5439,7 @@ function claudeCliRunnerWith(spawnImpl) {
       if (settled) return;
       settled = true;
       cleanup();
-      resolve(result);
+      resolve2(result);
     };
     const terminate = (kind) => {
       if (settled || closed || interruption) return;
@@ -5457,7 +5493,7 @@ function claudeCliRunnerWith(spawnImpl) {
 var claudeCliRunner = claudeCliRunnerWith(spawn);
 
 // src/license/state.ts
-import { mkdirSync as mkdirSync7, readFileSync as readFileSync8, writeFileSync as writeFileSync5, renameSync as renameSync5 } from "node:fs";
+import { mkdirSync as mkdirSync6, readFileSync as readFileSync9, writeFileSync as writeFileSync4, renameSync as renameSync5 } from "node:fs";
 import { homedir } from "node:os";
 import { join as join12 } from "node:path";
 function licenseDir(env) {
@@ -5466,7 +5502,7 @@ function licenseDir(env) {
 var statePath = (env) => join12(licenseDir(env), "license.json");
 function readLicenseState(env) {
   try {
-    const parsed = JSON.parse(readFileSync8(statePath(env), "utf8"));
+    const parsed = JSON.parse(readFileSync9(statePath(env), "utf8"));
     return parsed && typeof parsed === "object" ? parsed : null;
   } catch {
     return null;
@@ -5474,9 +5510,9 @@ function readLicenseState(env) {
 }
 function writeLicenseState(env, state) {
   const path = statePath(env);
-  mkdirSync7(licenseDir(env), { recursive: true });
+  mkdirSync6(licenseDir(env), { recursive: true });
   const tmp = `${path}.tmp-${process.pid}`;
-  writeFileSync5(tmp, JSON.stringify(state, null, 2) + "\n", { mode: 384 });
+  writeFileSync4(tmp, JSON.stringify(state, null, 2) + "\n", { mode: 384 });
   renameSync5(tmp, path);
 }
 
@@ -5597,12 +5633,12 @@ async function checkEntitlement(env, deps = {}) {
 
 // src/reconcile/hash-state.ts
 import { createHash } from "node:crypto";
-import { readFileSync as readFileSync9 } from "node:fs";
+import { readFileSync as readFileSync10 } from "node:fs";
 import { join as join13 } from "node:path";
 var STATE_FILE = ".reconcile-hashes.json";
 function readHashState(repoRoot) {
   try {
-    const d = JSON.parse(readFileSync9(join13(repoRoot, ".visflow", STATE_FILE), "utf8"));
+    const d = JSON.parse(readFileSync10(join13(repoRoot, ".visflow", STATE_FILE), "utf8"));
     if (!d || typeof d !== "object" || Array.isArray(d)) return {};
     const out = {};
     for (const [k, v] of Object.entries(d)) if (typeof v === "string") out[k] = v;
@@ -5616,7 +5652,7 @@ function hashContent(content) {
 }
 function hashFileContent(repoRoot, rel) {
   try {
-    return hashContent(readFileSync9(join13(repoRoot, rel)));
+    return hashContent(readFileSync10(join13(repoRoot, rel)));
   } catch {
     return null;
   }
@@ -5632,8 +5668,484 @@ function updateHashState(repoRoot, files, preset = {}) {
 }
 
 // src/reconcile/index.ts
-import { join as join14, sep as sep2 } from "node:path";
-import { existsSync as existsSync7, readFileSync as readFileSync10, realpathSync as realpathSync2 } from "node:fs";
+import { join as join16, sep as sep2 } from "node:path";
+import { existsSync as existsSync8, readFileSync as readFileSync13, realpathSync as realpathSync3 } from "node:fs";
+
+// src/workspace-reconcile/boundary-index.ts
+import { createHash as createHash3 } from "node:crypto";
+import { existsSync as existsSync7, readFileSync as readFileSync12, realpathSync as realpathSync2, statSync as statSync3 } from "node:fs";
+import { isAbsolute as isAbsolute3, join as join15, posix as posix2, resolve, win32 as win322 } from "node:path";
+
+// src/core/config.ts
+import { readFileSync as readFileSync11 } from "node:fs";
+import { join as join14 } from "node:path";
+var RepositoryConfigSchema = external_exports.object({
+  version: external_exports.literal(1),
+  repositoryId: external_exports.string().uuid().optional(),
+  commitPosture: external_exports.enum(["shared", "local"]).optional(),
+  configuredAt: external_exports.string().optional()
+}).passthrough();
+var configPath = (repoRoot) => join14(repoRoot, ".visflow", "config.json");
+function readRepositoryConfig(repoRoot) {
+  let raw;
+  try {
+    raw = readFileSync11(configPath(repoRoot), "utf8");
+  } catch {
+    return { ok: false, reason: "missing", detail: "No .visflow/config.json found." };
+  }
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch (error) {
+    return { ok: false, reason: "invalid-json", detail: error.message };
+  }
+  const parsed = RepositoryConfigSchema.safeParse(data);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      reason: "invalid-shape",
+      detail: parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ")
+    };
+  }
+  return { ok: true, config: parsed.data };
+}
+
+// src/schema/workspace-schema.ts
+import { posix, win32 } from "node:path";
+var UuidSchema = external_exports.string().uuid();
+var AliasSchema = external_exports.string().min(1).max(64).regex(
+  /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/,
+  "must be lowercase kebab-case"
+);
+var WorkspaceMemberSchema = external_exports.object({
+  repositoryId: UuidSchema,
+  alias: AliasSchema,
+  label: external_exports.string().min(1).max(MAX_NAME)
+});
+var QualifiedNodeRefSchema = external_exports.object({
+  repositoryId: UuidSchema,
+  nodeId: external_exports.string().min(1).max(MAX_NAME)
+});
+function isSafeWorkspaceRelativePath(value) {
+  if (value.length === 0 || value.length > 4e3) return false;
+  if (posix.isAbsolute(value) || win32.isAbsolute(value)) return false;
+  const normalized = posix.normalize(value.replaceAll("\\", "/"));
+  return normalized !== "." && normalized !== ".." && !normalized.startsWith("../");
+}
+var CrossRepoEvidenceSchema = external_exports.object({
+  repositoryId: UuidSchema,
+  path: external_exports.string().min(1).max(4e3).refine(isSafeWorkspaceRelativePath, "must be a repository-relative path"),
+  detail: external_exports.string().max(MAX_TEXT).optional()
+});
+var CrossRepoLinkSchema = external_exports.object({
+  id: UuidSchema,
+  source: QualifiedNodeRefSchema,
+  target: QualifiedNodeRefSchema,
+  what: external_exports.string().max(MAX_TEXT).optional(),
+  why: external_exports.string().max(MAX_TEXT).optional(),
+  managedBy: external_exports.enum(["user", "reconciler"]),
+  evidence: external_exports.array(CrossRepoEvidenceSchema).max(MAX_CROSS_LINK_EVIDENCE).optional()
+});
+var WorkspaceFileSchema = external_exports.object({
+  version: external_exports.literal(1),
+  id: UuidSchema,
+  label: external_exports.string().min(1).max(MAX_NAME),
+  members: external_exports.array(WorkspaceMemberSchema).max(MAX_WORKSPACE_MEMBERS),
+  links: external_exports.array(CrossRepoLinkSchema).max(MAX_CROSS_REPO_LINKS).default([])
+});
+var LocationValueSchema = external_exports.string().min(1).max(4e3).refine((value) => !posix.isAbsolute(value) && !win32.isAbsolute(value), "must be relative to the workspace root");
+var WorkspaceLocationsSchema = external_exports.object({
+  version: external_exports.literal(1),
+  locations: external_exports.record(UuidSchema, LocationValueSchema).default({})
+});
+
+// src/schema/boundary-schema.ts
+var BOUNDARY_KINDS = [
+  "package",
+  "http",
+  "schema",
+  "event",
+  "deployment",
+  "artifact"
+];
+var MAX_BOUNDARY_FACTS = 8192;
+var MAX_BOUNDARY_EVIDENCE = 16;
+var MAX_BOUNDARY_FILES = 16384;
+var EvidenceSchema = external_exports.object({
+  path: external_exports.string().min(1).max(4e3).refine(isSafeWorkspaceRelativePath, "must be a repository-relative path"),
+  detail: external_exports.string().max(4e3).optional()
+});
+var BoundaryFactSchema = external_exports.object({
+  id: external_exports.string().regex(/^[a-f0-9]{64}$/),
+  kind: external_exports.enum(BOUNDARY_KINDS),
+  direction: external_exports.enum(["consumes", "provides"]),
+  key: external_exports.string().min(1).max(1e3),
+  nodeId: external_exports.string().min(1).max(1e3),
+  evidence: external_exports.array(EvidenceSchema).min(1).max(MAX_BOUNDARY_EVIDENCE)
+});
+var BoundaryFileCacheSchema = external_exports.object({
+  hash: external_exports.string().regex(/^[a-f0-9]{64}$/),
+  nodeId: external_exports.string().min(1).max(1e3),
+  facts: external_exports.array(BoundaryFactSchema).max(MAX_BOUNDARY_FACTS)
+});
+var BoundaryIndexSchema = external_exports.object({
+  version: external_exports.literal(1),
+  repositoryId: external_exports.string().uuid(),
+  graphHash: external_exports.string().regex(/^[a-f0-9]{64}$/),
+  generatedAt: external_exports.string().datetime(),
+  facts: external_exports.array(BoundaryFactSchema).max(MAX_BOUNDARY_FACTS),
+  fingerprint: external_exports.string().regex(/^[a-f0-9]{64}$/),
+  files: external_exports.record(BoundaryFileCacheSchema).optional(),
+  diagnostics: external_exports.array(external_exports.string().max(4e3)).max(256).optional(),
+  truncated: external_exports.boolean().optional()
+});
+function validateBoundaryIndex(data) {
+  const parsed = BoundaryIndexSchema.safeParse(data);
+  if (!parsed.success) return {
+    ok: false,
+    errors: parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+  };
+  const ids = /* @__PURE__ */ new Set();
+  const errors = [];
+  for (const fact of parsed.data.facts) {
+    if (ids.has(fact.id)) errors.push(`Duplicate boundary fact id: ${fact.id}`);
+    ids.add(fact.id);
+  }
+  return errors.length ? { ok: false, errors } : { ok: true, value: parsed.data };
+}
+
+// src/workspace-reconcile/extractors/shared.ts
+import { createHash as createHash2 } from "node:crypto";
+var hashText = (value) => createHash2("sha256").update(value).digest("hex");
+var normalizeKey = (kind, value) => `${kind}:${value.trim().toLowerCase().replace(/\s+/g, " ")}`;
+var rawFact = (kind, direction, key, detail) => ({ kind, direction, key: normalizeKey(kind, key), ...detail ? { detail } : {} });
+function uniqueFacts(facts) {
+  const seen = /* @__PURE__ */ new Set();
+  return facts.filter((fact) => {
+    const key = JSON.stringify([fact.kind, fact.direction, fact.key, fact.detail ?? ""]);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+// src/workspace-reconcile/extractors/package.ts
+var builtin = /* @__PURE__ */ new Set([
+  "assert",
+  "buffer",
+  "child_process",
+  "crypto",
+  "events",
+  "fs",
+  "http",
+  "https",
+  "module",
+  "os",
+  "path",
+  "stream",
+  "timers",
+  "url",
+  "util",
+  "worker_threads",
+  "zlib"
+]);
+function packageRoot(specifier) {
+  const clean = specifier.replace(/^node:/, "");
+  if (!clean || clean.startsWith(".") || clean.startsWith("/") || builtin.has(clean.split("/")[0])) return null;
+  if (clean.startsWith("@")) {
+    const [scope, name] = clean.split("/");
+    return scope && name ? `${scope}/${name}` : null;
+  }
+  return clean.split("/")[0] || null;
+}
+var extractPackageFacts = (path, contents) => {
+  const facts = [];
+  if (/(^|\/)package\.json$/.test(path)) {
+    try {
+      const pkg = JSON.parse(contents);
+      if (typeof pkg.name === "string" && pkg.name.trim()) {
+        facts.push(rawFact("package", "provides", `npm:${pkg.name}`, `declares npm package ${pkg.name}`));
+      }
+      for (const field of ["dependencies", "peerDependencies", "optionalDependencies"]) {
+        const deps = pkg[field];
+        if (!deps || typeof deps !== "object" || Array.isArray(deps)) continue;
+        for (const name of Object.keys(deps)) {
+          facts.push(rawFact("package", "consumes", `npm:${name}`, `${field} includes ${name}`));
+        }
+      }
+    } catch {
+    }
+  }
+  const importPattern = /(?:\bfrom\s*|\brequire\s*\(|\bimport\s*\()\s*['"]([^'"]+)['"]/g;
+  for (const match of contents.matchAll(importPattern)) {
+    const name = packageRoot(match[1]);
+    if (name) facts.push(rawFact("package", "consumes", `npm:${name}`, `imports ${match[1]}`));
+  }
+  for (const match of contents.matchAll(/\bimport\s*['"]([^'"]+)['"]/g)) {
+    const name = packageRoot(match[1]);
+    if (name) facts.push(rawFact("package", "consumes", `npm:${name}`, `imports ${match[1]}`));
+  }
+  return uniqueFacts(facts);
+};
+
+// src/workspace-reconcile/extractors/http.ts
+var normalizePath = (value) => {
+  let path = value.trim();
+  path = path.replace(/^\$\{[^}]+\}/, "");
+  if (/^https?:\/\//i.test(path)) {
+    try {
+      path = new URL(path).pathname;
+    } catch {
+      return null;
+    }
+  }
+  if (!path.startsWith("/")) return null;
+  path = path.split(/[?#]/)[0].replace(/\$\{[^}]+\}/g, ":param").replace(/:[A-Za-z_][\w-]*/g, ":param").replace(/\{[^}]+\}/g, ":param").replace(/\/+/g, "/");
+  return path.length > 1 ? path.replace(/\/$/, "") : path;
+};
+var extractHttpFacts = (_path, contents) => {
+  const facts = [];
+  const route = /\b(?:app|router|server)\s*\.\s*(get|post|put|patch|delete|options|head)\s*\(\s*['"`]([^'"`]+)['"`]/gi;
+  for (const match of contents.matchAll(route)) {
+    const path = normalizePath(match[2]);
+    if (path) facts.push(rawFact("http", "provides", `${match[1].toUpperCase()} ${path}`, `declares ${match[1].toUpperCase()} ${match[2]}`));
+  }
+  const decorator = /@(Get|Post|Put|Patch|Delete|Options|Head)\s*\(\s*['"`]([^'"`]*)['"`]\s*\)/gi;
+  for (const match of contents.matchAll(decorator)) {
+    const path = normalizePath("/" + match[2].replace(/^\//, ""));
+    if (path) facts.push(rawFact("http", "provides", `${match[1].toUpperCase()} ${path}`, `declares @${match[1]}(${match[2]})`));
+  }
+  const simpleClient = /\b(?:fetch|axios\s*\.\s*(get|post|put|patch|delete)|client\s*\.\s*(get|post|put|patch|delete))\s*\(\s*['"`]([^'"`]+)['"`]/gi;
+  for (const match of contents.matchAll(simpleClient)) {
+    const method = (match[1] ?? match[2] ?? "GET").toUpperCase();
+    const value = match[3];
+    const path = normalizePath(value);
+    if (path) facts.push(rawFact("http", "consumes", `${method} ${path}`, `calls ${method} ${value}`));
+  }
+  return uniqueFacts(facts);
+};
+
+// src/workspace-reconcile/extractors/schema.ts
+import { basename as basename2 } from "node:path";
+var extractSchemaFacts = (path, contents) => {
+  const facts = [];
+  if (path.endsWith(".proto")) {
+    facts.push(rawFact("schema", "provides", `protobuf:${basename2(path)}`, `defines ${basename2(path)}`));
+    for (const match of contents.matchAll(/\bimport\s+['"]([^'"]+\.proto)['"]/g)) {
+      facts.push(rawFact("schema", "consumes", `protobuf:${basename2(match[1])}`, `imports ${match[1]}`));
+    }
+  }
+  if (/openapi|swagger/i.test(path)) {
+    const title = contents.match(/(?:"title"\s*:\s*"|^\s*title\s*:\s*)([^"\n]+)/m)?.[1]?.trim();
+    if (title) facts.push(rawFact("schema", "provides", `openapi:${title}`, `declares OpenAPI ${title}`));
+  }
+  return uniqueFacts(facts);
+};
+
+// src/workspace-reconcile/extractors/event.ts
+var extractEventFacts = (_path, contents) => {
+  const facts = [];
+  for (const match of contents.matchAll(/\b(?:publish|emit|sendToQueue)\s*\(\s*['"`]([^'"`]+)['"`]/g)) {
+    facts.push(rawFact("event", "provides", `event:${match[1]}`, `publishes ${match[1]}`));
+  }
+  for (const match of contents.matchAll(/\b(?:subscribe|consume|addEventListener)\s*\(\s*['"`]([^'"`]+)['"`]/g)) {
+    facts.push(rawFact("event", "consumes", `event:${match[1]}`, `subscribes to ${match[1]}`));
+  }
+  return uniqueFacts(facts);
+};
+
+// src/workspace-reconcile/extractors/deployment.ts
+var extractDeploymentFacts = (path, contents) => {
+  if (!/\.(?:ya?ml|tf|json)$|Dockerfile$/i.test(path)) return [];
+  const facts = [];
+  for (const match of contents.matchAll(/^\s*(?:service|name)\s*:\s*['"]?([a-z0-9][\w.-]+)['"]?\s*$/gim)) {
+    facts.push(rawFact("deployment", "provides", `service:${match[1]}`, `declares service ${match[1]}`));
+  }
+  for (const match of contents.matchAll(/^\s*(?:depends_on\s*:\s*|serviceName\s*:\s*|host\s*:\s*)['"]?([a-z0-9][\w.-]+)['"]?\s*$/gim)) {
+    facts.push(rawFact("deployment", "consumes", `service:${match[1]}`, `references service ${match[1]}`));
+  }
+  return uniqueFacts(facts);
+};
+
+// src/workspace-reconcile/extractors/artifact.ts
+var cleanImage = (value) => value.trim().replace(/@sha256:[a-f0-9]+$/i, "").replace(/:[^/:]+$/, "");
+var extractArtifactFacts = (path, contents) => {
+  const facts = [];
+  if (/Dockerfile$/i.test(path)) {
+    for (const match of contents.matchAll(/^\s*FROM\s+([^\s]+)(?:\s+AS\s+\S+)?/gim)) {
+      facts.push(rawFact("artifact", "consumes", `container:${cleanImage(match[1])}`, `uses image ${match[1]}`));
+    }
+  }
+  for (const match of contents.matchAll(/^\s*image\s*:\s*['"]?([^\s'"]+)['"]?\s*$/gim)) {
+    facts.push(rawFact("artifact", "consumes", `container:${cleanImage(match[1])}`, `uses image ${match[1]}`));
+  }
+  const produced = contents.match(/^\s*(?:imageName|repository)\s*[:=]\s*['"]?([^\s'"]+)['"]?\s*$/im)?.[1];
+  if (produced) facts.push(rawFact("artifact", "provides", `container:${cleanImage(produced)}`, `publishes image ${produced}`));
+  return uniqueFacts(facts);
+};
+
+// src/workspace-reconcile/boundary-index.ts
+var BOUNDARY_INDEX_FILE = "boundary-index.json";
+var boundaryIndexPath = (repoRoot) => join15(repoRoot, ".visflow", BOUNDARY_INDEX_FILE);
+var DEFAULT_BOUNDARY_FILE_CAP_BYTES = 512 * 1024;
+var DEFAULT_EXTRACTORS = [
+  extractPackageFacts,
+  extractHttpFacts,
+  extractSchemaFacts,
+  extractEventFacts,
+  extractDeploymentFacts,
+  extractArtifactFacts
+];
+var canonicalHash = (value) => createHash3("sha256").update(JSON.stringify(value)).digest("hex");
+var safeRelative = (path) => {
+  if (!path || isAbsolute3(path) || posix2.isAbsolute(path) || win322.isAbsolute(path)) return false;
+  const normalized = posix2.normalize(path.replaceAll("\\", "/"));
+  return normalized !== "." && normalized !== ".." && !normalized.startsWith("../");
+};
+var containedRealPath = (repoRoot, rel) => {
+  try {
+    const root = realpathSync2(repoRoot);
+    const file = realpathSync2(resolve(root, rel));
+    return isPathInside(root, file) ? file : null;
+  } catch {
+    return null;
+  }
+};
+function readBoundaryIndex(repoRoot) {
+  let raw;
+  try {
+    raw = readFileSync12(boundaryIndexPath(repoRoot), "utf8");
+  } catch {
+    return { ok: false, reason: "missing", errors: ["No .visflow/boundary-index.json found."] };
+  }
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch (error) {
+    return { ok: false, reason: "invalid-json", errors: [error.message] };
+  }
+  const checked = validateBoundaryIndex(data);
+  return checked.ok ? { ok: true, value: checked.value, raw } : { ok: false, reason: "invalid-schema", errors: checked.errors };
+}
+function materializeFact(nodeId, path, raw) {
+  const evidence = [{ path, ...raw.detail ? { detail: raw.detail } : {} }];
+  const identity = { kind: raw.kind, direction: raw.direction, key: raw.key, nodeId, evidence };
+  return { id: canonicalHash(identity), ...identity };
+}
+var factOrder = (left, right) => left.kind.localeCompare(right.kind) || left.key.localeCompare(right.key) || left.direction.localeCompare(right.direction) || left.nodeId.localeCompare(right.nodeId) || left.id.localeCompare(right.id);
+function refreshBoundaryIndex(repoRoot, opts = {}) {
+  const config = readRepositoryConfig(repoRoot);
+  if (!config.ok || !config.config.repositoryId) return { ok: false, reason: "repository identity unavailable" };
+  const loaded = loadGraph(repoRoot);
+  if (!loaded.ok) return { ok: false, reason: `graph unavailable: ${loaded.error.kind}` };
+  const graphHash = hashText(loaded.raw);
+  const previous = readBoundaryIndex(repoRoot);
+  const previousFiles = previous.ok ? previous.value.files ?? {} : {};
+  const diagnostics = [];
+  const owners = /* @__PURE__ */ new Map();
+  for (const node of loaded.graph.nodes) {
+    for (const original of node.files) {
+      const path = posix2.normalize(original.replaceAll("\\", "/"));
+      if (!safeRelative(path)) {
+        diagnostics.push(`ignored unsafe graph path: ${original}`);
+        continue;
+      }
+      if (owners.has(path) && owners.get(path) !== node.id) owners.set(path, null);
+      else owners.set(path, node.id);
+    }
+  }
+  if (!owners.has("package.json") && existsSync7(join15(repoRoot, "package.json"))) {
+    try {
+      const pkg = JSON.parse(readFileSync12(join15(repoRoot, "package.json"), "utf8"));
+      const entries = [];
+      const collect = (value) => {
+        if (typeof value === "string") entries.push(posix2.normalize(value.replace(/^\.\//, "")));
+        else if (Array.isArray(value)) value.forEach(collect);
+        else if (value && typeof value === "object") Object.values(value).forEach(collect);
+      };
+      collect(pkg.main);
+      collect(pkg.module);
+      collect(pkg.types);
+      collect(pkg.bin);
+      collect(pkg.exports);
+      const entryOwners = new Set(entries.map((entry) => owners.get(entry)).filter((owner) => typeof owner === "string"));
+      if (entryOwners.size === 1) owners.set("package.json", [...entryOwners][0]);
+      else if (loaded.graph.nodes.length === 1) owners.set("package.json", loaded.graph.nodes[0].id);
+      else if (typeof pkg.name === "string") diagnostics.push(`package.json is unowned; package boundary ${pkg.name} was not indexed`);
+    } catch {
+      diagnostics.push("package.json is unreadable or invalid; package boundary was not indexed");
+    }
+  }
+  const files = {};
+  const facts = [];
+  const extractors = opts.extractors ?? DEFAULT_EXTRACTORS;
+  let truncated = false;
+  for (const [path, nodeId] of [...owners.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    if (Object.keys(files).length >= MAX_BOUNDARY_FILES) {
+      truncated = true;
+      break;
+    }
+    if (nodeId === null) {
+      diagnostics.push(`ignored ambiguously owned file: ${path}`);
+      continue;
+    }
+    const real = containedRealPath(repoRoot, path);
+    if (!real) {
+      diagnostics.push(`ignored missing or out-of-repository file: ${path}`);
+      continue;
+    }
+    let contents;
+    try {
+      if (statSync3(real).size > (opts.fileCapBytes ?? DEFAULT_BOUNDARY_FILE_CAP_BYTES)) {
+        diagnostics.push(`ignored oversized boundary file: ${path}`);
+        continue;
+      }
+      contents = readFileSync12(real, "utf8");
+    } catch {
+      diagnostics.push(`ignored unreadable boundary file: ${path}`);
+      continue;
+    }
+    const hash = hashText(contents);
+    const cached = previousFiles[path];
+    const fileFacts = cached?.hash === hash && cached.nodeId === nodeId ? cached.facts : extractors.flatMap((extractor) => extractor(path, contents)).map((fact) => materializeFact(nodeId, path, fact));
+    files[path] = { hash, nodeId, facts: fileFacts };
+    for (const fact of fileFacts) {
+      if (facts.length >= MAX_BOUNDARY_FACTS) {
+        truncated = true;
+        break;
+      }
+      facts.push(fact);
+    }
+    if (truncated) break;
+  }
+  facts.sort(factOrder);
+  const fingerprint = canonicalHash(facts.map(({ id: _id, ...fact }) => fact));
+  const index = {
+    version: 1,
+    repositoryId: config.config.repositoryId,
+    graphHash,
+    generatedAt: (opts.now ?? (() => (/* @__PURE__ */ new Date()).toISOString()))(),
+    facts,
+    fingerprint,
+    ...Object.keys(files).length ? { files } : {},
+    ...diagnostics.length ? { diagnostics: diagnostics.slice(0, 256) } : {},
+    ...truncated ? { truncated: true } : {}
+  };
+  const checked = validateBoundaryIndex(index);
+  if (!checked.ok) return { ok: false, reason: `invalid boundary index: ${checked.errors.join("; ")}` };
+  return withSyncMicroLock(join15(repoRoot, ".visflow", ".boundary-lock"), () => {
+    const current = loadGraph(repoRoot);
+    if (!current.ok) return { ok: false, reason: `graph unavailable: ${current.error.kind}` };
+    if (hashText(current.raw) !== graphHash) return { ok: false, reason: "graph changed during boundary refresh" };
+    const latest = readBoundaryIndex(repoRoot);
+    const unchanged = latest.ok && latest.value.repositoryId === index.repositoryId && latest.value.graphHash === graphHash && latest.value.fingerprint === fingerprint && Boolean(latest.value.truncated) === Boolean(index.truncated) && JSON.stringify(latest.value.diagnostics ?? []) === JSON.stringify(index.diagnostics ?? []);
+    if (unchanged) return { ok: true, index: latest.value, changed: false };
+    writeJsonAtomic(boundaryIndexPath(repoRoot), index);
+    return { ok: true, index, changed: true };
+  });
+}
+
+// src/reconcile/index.ts
 var INLINE_CAP_BYTES = 48 * 1024;
 var hashGuardFiles = (changedFiles) => [".visflow/graph.json", ...changedFiles];
 async function runReconcile(repoRoot, opts = {}) {
@@ -5693,6 +6205,17 @@ async function runReconcile(repoRoot, opts = {}) {
     guard.release();
     clearOwnedCancellationRequest(repoRoot, guard.token);
   }
+  const config = readRepositoryConfig(repoRoot);
+  if (config.ok && config.config.repositoryId) {
+    const boundary = refreshBoundaryIndex(repoRoot, { now: opts.now });
+    if (!boundary.ok) {
+      updateMeta(repoRoot, (cur) => ({
+        ...cur,
+        version: 1,
+        lastReason: [cur.lastReason, `boundary index: ${boundary.reason}`].filter(Boolean).join(" \xB7 ")
+      }));
+    }
+  }
   if (completedCleanly && !controller.signal.aborted && hasPendingReconcileWork(repoRoot)) {
     const successor = await runReconcile(repoRoot, {
       ...opts,
@@ -5707,8 +6230,8 @@ async function runReconcile(repoRoot, opts = {}) {
   return finalResult;
 }
 function hasPendingReconcileWork(repoRoot) {
-  const dir = join14(repoRoot, ".visflow");
-  return existsSync7(join14(dir, "events.log")) || existsSync7(join14(dir, "feedback-targets.log")) || hasRecoverableEventDrains(repoRoot) || hasRecoverableTargetDrains(repoRoot);
+  const dir = join16(repoRoot, ".visflow");
+  return existsSync8(join16(dir, "events.log")) || existsSync8(join16(dir, "feedback-targets.log")) || hasRecoverableEventDrains(repoRoot) || hasRecoverableTargetDrains(repoRoot);
 }
 async function runReconcilePass(repoRoot, opts) {
   const now = opts.now ?? (() => (/* @__PURE__ */ new Date()).toISOString());
@@ -5761,7 +6284,7 @@ async function runReconcilePass(repoRoot, opts) {
   if (mode === "scoped" && scope && !gc && !hasTargets && scope.newFiles.length === 0 && orphanIds.length === 0 && scope.changedFiles.length > 0) {
     const hashState = readHashState(repoRoot);
     const scopeIds = /* @__PURE__ */ new Set([...scope.affectedNodeIds, ...scope.neighborNodeIds]);
-    const allPresent = prevGraph.nodes.filter((n) => scopeIds.has(n.id)).flatMap((n) => n.files).every((f) => existsSync7(join14(repoRoot, f)));
+    const allPresent = prevGraph.nodes.filter((n) => scopeIds.has(n.id)).flatMap((n) => n.files).every((f) => existsSync8(join16(repoRoot, f)));
     const unchanged = allPresent && hashGuardFiles(scope.changedFiles).every((f) => {
       const h = hashFileContent(repoRoot, f);
       return h !== null && h === hashState[f];
@@ -5801,17 +6324,17 @@ async function runReconcilePass(repoRoot, opts) {
     const readable = /* @__PURE__ */ new Set([...consideredChanged, ...neighborFiles]);
     const collected = [];
     let bytes = 0;
-    const realRoot = realpathSync2(repoRoot);
+    const realRoot = realpathSync3(repoRoot);
     for (const rel of /* @__PURE__ */ new Set([...readable, ...scopeNodeFiles])) {
       let contents;
       try {
-        const real = realpathSync2(join14(repoRoot, rel));
+        const real = realpathSync3(join16(repoRoot, rel));
         if (real !== realRoot && !real.startsWith(realRoot + sep2)) {
           inlineSkipped = "out-of-repo";
           collected.length = 0;
           break;
         }
-        contents = readFileSync10(real, "utf8");
+        contents = readFileSync13(real, "utf8");
       } catch {
         inlineSkipped = "unreadable";
         collected.length = 0;
@@ -5830,11 +6353,11 @@ async function runReconcilePass(repoRoot, opts) {
   }
   let excludePaths;
   if (mode === "scoped" && scope && !inlineFiles) {
-    const realRoot = realpathSync2(repoRoot);
+    const realRoot = realpathSync3(repoRoot);
     const neighborFiles = [...new Set(prevGraph.nodes.filter((n) => scope.neighborNodeIds.includes(n.id)).flatMap((n) => n.files))];
     const out = [.../* @__PURE__ */ new Set([...scope.changedFiles, ...neighborFiles])].filter((rel) => {
       try {
-        const real = realpathSync2(join14(repoRoot, rel));
+        const real = realpathSync3(join16(repoRoot, rel));
         return real !== realRoot && !real.startsWith(realRoot + sep2);
       } catch {
         return false;
@@ -5933,12 +6456,12 @@ async function runReconcilePass(repoRoot, opts) {
   const outcome = await withLock(repoRoot, () => {
     const recheck = loadGraph(repoRoot);
     if (!recheck.ok || JSON.stringify(recheck.graph) !== prevFingerprint) return "stale";
-    if (!graphUnchanged) writeJsonAtomic(join14(repoRoot, ".visflow", "graph.json"), proposed);
+    if (!graphUnchanged) writeJsonAtomic(join16(repoRoot, ".visflow", "graph.json"), proposed);
     if (result.proposal.decisionMoves.length) {
       const current = readDecisions(repoRoot);
       const merged2 = applyMoves(current, result.proposal.decisionMoves, new Set(proposed.nodes.map((n) => n.id)));
       const dv = validateDecisions(merged2);
-      if (dv.ok) writeJsonAtomic(join14(repoRoot, ".visflow", "decisions.json"), merged2);
+      if (dv.ok) writeJsonAtomic(join16(repoRoot, ".visflow", "decisions.json"), merged2);
     }
     return "ok";
   });
@@ -5995,7 +6518,7 @@ async function ghostGcOnly(repoRoot, stamp, now) {
   const outcome = await withLock(repoRoot, () => {
     const recheck = loadGraph(repoRoot);
     if (!recheck.ok || JSON.stringify(recheck.graph) !== fingerprint) return "stale";
-    writeJsonAtomic(join14(repoRoot, ".visflow", "graph.json"), gc.graph);
+    writeJsonAtomic(join16(repoRoot, ".visflow", "graph.json"), gc.graph);
     return "ok";
   });
   if (outcome === "stale") return null;
@@ -6019,7 +6542,7 @@ async function main() {
     stampCrash(repoRoot, e);
     process.exit(1);
   });
-  if (existsSync7(join14(repoRoot, ".visflow", "graph.json"))) {
+  if (existsSync8(join16(repoRoot, ".visflow", "graph.json"))) {
     const ent = await checkEntitlement(process.env);
     if (!ent.allowed) {
       console.error(`visflow reconcile: ${ent.refusal ?? "not licensed"}`);
@@ -6032,6 +6555,7 @@ async function main() {
 if (isMain(import.meta.url)) void main();
 export {
   INLINE_CAP_BYTES,
+  hasPendingReconcileWork,
   runReconcile,
   stampCrash
 };
