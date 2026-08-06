@@ -40064,6 +40064,11 @@ var PREAMBLE = [
   "Ground your answer in the map data below first; use Read, Grep, or Glob only when the injected context does not cover the question."
 ].join("\n");
 var BACKTICK_INSTRUCTION = "When your answer references a component/node id or a file path from the map, wrap it in backticks (e.g. `some-id`, `src/server/app.ts`).";
+var PIN_REFERENCE_INSTRUCTION = [
+  "Pinned components and groups are the user's active referent.",
+  'When the latest question uses an unresolved reference such as "this", "that", "it", "these", "those", or "the pinned stuff" without naming a different component or file, interpret it as referring to the pinned items.',
+  "For one pinned item, answer about that item; for several, answer across them or explain their relationship."
+].join(" ");
 var HISTORY_BUDGET = 8e3;
 var tokens2 = (text) => Math.ceil(text.length / 4);
 function trimHistory(pairs, budget = HISTORY_BUDGET) {
@@ -40078,7 +40083,10 @@ A: ${pairs[i].a}`);
   return kept;
 }
 function buildChatSystemPrompt(opts) {
-  const sections = [PREAMBLE, opts.indexLines.join("\n")];
+  const hasPinnedContext = (opts.pinnedIds?.length ?? 0) > 0 || (opts.pinnedGroups?.length ?? 0) > 0;
+  const sections = [PREAMBLE];
+  if (hasPinnedContext) sections.push(PIN_REFERENCE_INSTRUCTION);
+  sections.push(opts.indexLines.join("\n"));
   if (opts.pinnedGroups && opts.pinnedGroups.length > 0) {
     const blocks = opts.pinnedGroups.map(
       (g) => [`### ${g.label} (\`${g.id}\`)`, g.summary, `Members: ${g.memberIds.map((m) => `\`${m}\``).join(", ")}`].join("\n")
